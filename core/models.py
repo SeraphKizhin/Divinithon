@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from typing import Optional
 
+MonsterTier = Literal["normal", "mini_boss", "boss"]
+
 @dataclass
 class Equipment:
     name: str
@@ -12,4 +14,4 @@ class Equipment:
 @dataclass
 class Monster:
     name: str
-    is_boss: bool = False
+    tier: MonsterTier = "normal"
