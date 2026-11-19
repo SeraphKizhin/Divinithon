@@ -22,13 +22,13 @@ col_left, col_center, col_right = st.columns([1, 1.5, 1])
 
 # LEFT COLUMN: Apostle & Resources
 with col_left:
-    render_left_column
+    render_left_column(state)
 
 # CENTER COLUMN: Action & Logbook
 with col_center:
-    render_center_column
+    render_center_column(state)
 
 # RIGHT COLUMN: Map & Gear
 with col_right:
-    render_right_column
+    render_right_column(state)
     
