@@ -18,7 +18,7 @@ if "game_state" not in st.session_state:
         "cur_hp": 50,
 
         "quest": "Explore the Whispering Woods",
-        "quest_progress": 30,
+        "quest_progress": 0,
         "gold": 0,
         "monster_defeated": 0,
         "death_count": 0,
@@ -109,6 +109,9 @@ with col_left:
             f"**Monsters Defeated:** {state.get('monster_defeated', 0)}  \n"
             f"**Death Count:** {state.get('death_count', 0)}"
         )
+
+    # Small spacer between Profile Card and Inventory
+    st.write("")
 
     # Bottom-Left UI Block: Stacking Inventory UI
     with st.container(border=True):
