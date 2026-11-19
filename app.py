@@ -23,10 +23,7 @@ if "game_state" not in st.session_state:
         "monster_defeated": 0,
         "death_count": 0,
 
-        "inventory": {
-            "Goblin Ears": 4,
-            "Wolf Pelt": 3,
-        },
+        "inventory": {},
 
         "current_action": "Awaiting divine guidance...",
         "action_progress": 0,
@@ -99,7 +96,7 @@ with col_left:
         raw_progress = state.get("quest_progress", 0)
         quest_ratio = max(0.0, min(1.0, raw_progress / 100.0 if raw_progress > 1 else float(raw_progress)))
         quest_pct = int(quest_ratio * 100)
-        st.markdown(f"**Quest:** *"{quest_name}"*")
+        st.markdown(f'**Quest:** *"{quest_name}"*')
         st.progress(
             quest_ratio,
             text=f"Quest Progress: {quest_pct}%"
