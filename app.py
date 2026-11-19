@@ -18,12 +18,15 @@ if "game_state" not in st.session_state:
         "cur_hp": 50,
 
         "quest": "Explore the Whispering Woods",
-        "quest_progress": 0,
+        "quest_progress": 30,
         "gold": 0,
         "monster_defeated": 0,
         "death_count": 0,
 
-        "inventory": {},
+        "inventory": {
+            "Goblin Ears": 4,
+            "Wolf Pelt": 3,
+        },
 
         "current_action": "Awaiting divine guidance...",
         "action_progress": 0,
@@ -57,39 +60,83 @@ st.divider()
 
 col_left, col_center, col_right = st.columns([1, 1.5, 1])
 
-# LEFT COLUMN: Apostle & Resources
+# LEFT COLUMN: Apostle Profile & Stacking Inventory
 with col_left:
-    st.header("Apostle & Resources")
-    
-    st.subheader("Apostle Profile")
-    st.write(f"**Name:** {state['apostle']} | **Level:** {state['lvl']}")
+    # Top-Left UI Block: Apostle Profile Card
+    with st.container(border=True):
+        st.subheader("Apostle", anchor=False)
 
-    hp_ratio = max(0.0, min(1.0, state["cur_hp"] / state["max_hp"]))
-    st.progress(
-        hp_ratio,
-        text=f"HP: {state['cur_hp']}/{state['max_hp']}"
-    )
+        # Avatar image placeholder
+        avatar_svg = """
+        <div style="display: flex; justify-content: center; align-items: center; margin: 8px 0 16px 0;">
+            <div style="width: 80px; height: 80px; border-radius: 50%; background: #262730; display: flex; justify-content: center; align-items: center; border: 2px solid #4a4d5d;">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="52" height="52" fill="#8b92a5">
+                    <path d="M12 12c2.67 0 4.8-2.13 4.8-4.8S14.67 2.4 12 2.4 7.2 4.53 7.2 7.2 9.33 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/>
+                </svg>
+            </div>
+        </div>
+        """
+        st.markdown(avatar_svg, unsafe_allow_html=True)
 
-    exp_ratio = max(0.0, min(1.0, state["exp"] / state["exp_req"]))
-    st.progress(
-        exp_ratio, 
-        text=f"EXP: {state['exp']}/{state['exp_req']}"
-    )
+        # Name and Level
+        c_name, c_lvl = st.columns([1, 1])
+        with c_name:
+            st.markdown(f"**Name:** {state['apostle']}")
+        with c_lvl:
+            st.markdown(f"**Level:** {state['lvl']}")
 
-    st.write(
-        f"**Gold:** {state['gold']} \n "
-        f"**Monsters Defeated:** {state['monster_defeated']} \n "
-        f"**Death Count:** {state['death_count']}"
-    )
-    
-    st.divider()
-    
-    st.subheader("Inventory")
-    if not state["inventory"]:
-        st.caption("Inventory is empty.")
-    else:
-        for item, qty in state["inventory"].items():
-            st.write(f"`[{item} x{qty}]`")
+        # Dynamic Health Bar
+        max_hp = max(1, state.get("max_hp", 50))
+        cur_hp = max(0, min(state.get("cur_hp", 50), max_hp))
+        hp_ratio = cur_hp / max_hp
+        st.progress(
+            hp_ratio,
+            text=f"Health: {cur_hp}/{max_hp}"
+        )
+
+        # Active Quest & Progress Bar
+        quest_name = state.get("quest", "Explore the Whispering Woods")
+        raw_progress = state.get("quest_progress", 0)
+        quest_ratio = max(0.0, min(1.0, raw_progress / 100.0 if raw_progress > 1 else float(raw_progress)))
+        quest_pct = int(quest_ratio * 100)
+        st.markdown(f"**Quest:** *"{quest_name}"*")
+        st.progress(
+            quest_ratio,
+            text=f"Quest Progress: {quest_pct}%"
+        )
+
+        # Stats
+        st.divider()
+        st.markdown(
+            f"**Gold:** {state.get('gold', 0)}  \n"
+            f"**Monsters Defeated:** {state.get('monster_defeated', 0)}  \n"
+            f"**Death Count:** {state.get('death_count', 0)}"
+        )
+
+    # Bottom-Left UI Block: Stacking Inventory UI
+    with st.container(border=True):
+        st.subheader("Inventory", anchor=False)
+
+        inventory_data = state.get("inventory", {})
+
+        # Normalize dictionary or list representation for stacking
+        if isinstance(inventory_data, list):
+            from collections import Counter
+            inventory_items = Counter(inventory_data)
+        elif isinstance(inventory_data, dict):
+            inventory_items = inventory_data
+        else:
+            inventory_items = {}
+
+        if not inventory_items:
+            st.caption("Inventory is empty.")
+        else:
+            for item, qty in inventory_items.items():
+                item_col, qty_col = st.columns([3, 1])
+                with item_col:
+                    st.write(item)
+                with qty_col:
+                    st.write(f"**x{qty}**")
 
 # CENTER COLUMN: Action & Logbook
 with col_center:
