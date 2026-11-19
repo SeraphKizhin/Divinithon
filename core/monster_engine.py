@@ -101,11 +101,11 @@ def roll_rewards(
     }
 
 if __name__ == "__main__":
-    from data.catalog import EQUIPMENTS, MONSTERS, SELLABLE_ITEMS
+    from data.catalog import EQUIPMENTS, MONSTERS, EXTRA
 
     for lvl in (1, 5):
         enemy = spawn_monster(apostle_lvl=lvl, monsters_catalog=MONSTERS)
-        rewards = roll_rewards(enemy.tier, EQUIPMENTS, SELLABLE_ITEMS)
+        rewards = roll_rewards(enemy.tier, EQUIPMENTS, EXTRA)
         print(f"Apostle Lv.{lvl} spawned: {enemy}")
         print(f"  Equipment drops: {[e.name for e in rewards['equipment']]}")
         print(f"  Sellable drops:  {rewards['sellables']}\n")
