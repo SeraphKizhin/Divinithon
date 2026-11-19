@@ -211,4 +211,7 @@ MONSTERS = [
     Monster("Euris", tier="normal"),
     Monster("Pova", tier="normal"),
     Monster("Yeti", tier="normal"),
+
+    # EXTRA
+    Extra("")
 ]

@@ -15,3 +15,16 @@ class Equipment:
 class Monster:
     name: str
     tier: MonsterTier = "normal"
+
+@dataclass
+class Extra:
+    name: str
+    sell_value: int
+
+@dataclass
+class ActiveMonster:
+    name: str
+    tier: MonsterTier
+    max_hp: int
+    cur_hp: int
+    
