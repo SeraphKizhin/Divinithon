@@ -1,5 +1,6 @@
-from core.models import Equipment, Monster
+from core.models import Equipment, Extra, Monster
 
+# EQUIPMENTS
 EQUIPMENTS = [
     # OHS (ONE HANDED SWORD)
     Equipment("Belly Buster Sword", slot="mainhand", weapon_type="OHS", offhandable=True),
@@ -30,12 +31,12 @@ EQUIPMENTS = [
     Equipment("Eroded Strahl", slot="mainhand", weapon_type="BOW"),
     Equipment("Goldrush Slingshot", slot="mainhand", weapon_type="BOW"),
     Equipment("Iris Ark Bow", slot="mainhand", weapon_type="BOW"),
-    Equipment("Nycherida",  slot="mainhand", weapon_type="BOW"),
+    Equipment("Nycherida", slot="mainhand", weapon_type="BOW"),
     Equipment("Slingshot", slot="mainhand", weapon_type="BOW"),
     Equipment("Vulture Shooter", slot="mainhand", weapon_type="BOW"),
     Equipment("Yozakura Crescent Bow", slot="mainhand", weapon_type="BOW"),
     Equipment("Zel Shooter", slot="mainhand", weapon_type="BOW"),
-    
+
     # STAFF
     Equipment("Abracadabra Cone", slot="mainhand", weapon_type="STAFF"),
     Equipment("Baladio Staff", slot="mainhand", weapon_type="STAFF"),
@@ -163,79 +164,38 @@ EQUIPMENTS = [
     Equipment("Time Warp Watch", slot="special"),
 ]
 
-MONSTERS = [
-    # BOSS
-    Monster("Apostial", tier="boss"),
-    Monster("Castilia", tier="boss"),
-    Monster("Demi Machina", tier="boss"),
-    Monster("Doreminador", tier="boss"),
-    Monster("Seele Zauga", tier="boss"),
-    Monster("Terrarex", tier="boss"),
-    Monster("War Dragon Turba", tier="boss"),
-
-    # MINI-BOSS
-    Monster("Altoblepas", tier="mini_boss"),
-    Monster("Big Coryn", tier="mini_boss"),
-    Monster("Boss Colon", tier="mini_boss"),
-    Monster("Crimsosch", tier="mini_boss"),
-    Monster("Don Yeti", tier="mini_boss"),
-    Monster("Golden Coryn", tier="mini_boss"),
-    Monster("Golden Potum", tier="mini_boss"),
-    Monster("King Potum", tier="mini_boss"),
-    Monster("Miracle Potum", tier="mini_boss"),
-    Monster("Nightmare Potum", tier="mini_boss"),
-    Monster("Seraph Machina", tier="mini_boss"),
-    Monster("Tortuga", tier="mini_boss"),
-    Monster("Vevela", tier="mini_boss"),
-    Monster("Wiltileaf", tier="mini_boss"),
-
-    # NORMAl
-    Monster("Colon", tier="normal"),
-    Monster("Raffy", tier="normal"),
-    Monster("Pico", tier="normal"),
-    Monster("Pomum", tier="normal"),
-    Monster("Torpo", tier="normal"),
-    Monster("Ruin Rat", tier="normal"),
-    Monster("Wooly", tier="normal"),
-    Monster("Cobre", tier="normal"),
-    Monster("Nemico", tier="normal"),
-    Monster("Hound", tier="normal"),
-    Monster("Frosch", tier="normal"),
-    Monster("Miwi", tier="normal"),
-    Monster("Savaran", tier="normal"),
-    Monster("Goblin", tier="normal"),
-    Monster("Calron", tier="normal"),
-    Monster("Roca", tier="normal"),
-    Monster("Boar", tier="normal"),
-    Monster("Skeleton", tier="normal"),
-    Monster("Euris", tier="normal"),
-    Monster("Pova", tier="normal"),
-    Monster("Yeti", tier="normal"),
-]
-
+# EXTRA (Sellable Monster Drops)
 EXTRA = [
-    # EXTRA
+    # Boss Drops
     Extra("Broken Holy Scale", sell_value=200),
     Extra("Apostial Spritual Cloth", sell_value=180),
     Extra("Sacred Jewel", sell_value=250),
+
     Extra("Magic Hammer", sell_value=180),
     Extra("Shiny Ornament", sell_value=200),
     Extra("Viridian Butterfly", sell_value=250),
+
     Extra("Broken Gas Mask", sell_value=180),
     Extra("Giant Machina's Heart", sell_value=250),
     Extra("Patchwork Skin", sell_value=200),
+
     Extra("Corroded Dragon Heart", sell_value=250),
     Extra("Corroded Dragon Horns", sell_value=200),
     Extra("Corroded Dragon Scale", sell_value=200),
+
     Extra("High Grade Frill Fabric", sell_value=200),
     Extra("Red Satin Fabric", sell_value=180),
     Extra("Messenger Feather", sell_value=250),
+
     Extra("Terrarex Crystal Horns", sell_value=180),
     Extra("Raging Dragon Scute", sell_value=200),
     Extra("Raging Heart", sell_value=250),
+
     Extra("Fluorescent Dragon Stone", sell_value=180),
     Extra("Green Luminescent Black Claw", sell_value=200),
     Extra("War Dragon Horn", sell_value=250),
+
+    # Normal Monster Drops
     Extra("Colon Leaf", sell_value=50),
     Extra("Colon Skin", sell_value=10),
     Extra("Fluffy Fur", sell_value=10),
@@ -276,6 +236,8 @@ EXTRA = [
     Extra("Soft Leaf", sell_value=4),
     Extra("Cold Wood Stick", sell_value=10),
     Extra("Thick Fur", sell_value=11),
+
+    # Mini-Boss & Family Drops
     Extra("Cracked Big Axe", sell_value=30),
     Extra("Cracked Hunting Horn", sell_value=25),
     Extra("Squawker Horn", sell_value=30),
@@ -294,7 +256,7 @@ EXTRA = [
     Extra("Potum Nail", sell_value=20),
     Extra("Bead Fragment", sell_value=25),
     Extra("Potum Crown", sell_value=36),
-    Extra("Hard Apple ", sell_value=11),
+    Extra("Hard Apple", sell_value=11),
     Extra("Morning Star", sell_value=50),
     Extra("Potum's Soul", sell_value=40),
     Extra("Purification Salt", sell_value=30),
@@ -311,3 +273,67 @@ EXTRA = [
     Extra("Spiral Tree Bark", sell_value=25),
     Extra("Tangled Roots", sell_value=25),
 ]
+
+# Helper lookup to assign Extra objects cleanly by name
+_E: dict[str, Extra] = {item.name: item for item in EXTRA}
+
+def _drops(*names: str) -> list[Extra]:
+    return [_E[name] for name in names]
+
+
+# MONSTERS
+MONSTERS = [
+    # BOSS
+    Monster("Apostial", tier="boss", sellable_drops=_drops("Broken Holy Scale", "Apostial Spritual Cloth", "Sacred Jewel")),
+    Monster("Castilia", tier="boss", sellable_drops=_drops("Magic Hammer", "Shiny Ornament", "Viridian Butterfly")),
+    Monster("Demi Machina", tier="boss", sellable_drops=_drops("Broken Gas Mask", "Giant Machina's Heart", "Patchwork Skin")),
+    Monster("Doreminador", tier="boss", sellable_drops=_drops("Corroded Dragon Heart", "Corroded Dragon Horns", "Corroded Dragon Scale")),
+    Monster("Seele Zauga", tier="boss", sellable_drops=_drops("High Grade Frill Fabric", "Red Satin Fabric", "Messenger Feather")),
+    Monster("Terrarex", tier="boss", sellable_drops=_drops("Terrarex Crystal Horns", "Raging Dragon Scute", "Raging Heart")),
+    Monster("War Dragon Turba", tier="boss", sellable_drops=_drops("Fluorescent Dragon Stone", "Green Luminescent Black Claw", "War Dragon Horn")),
+
+    # MINI-BOSS
+    Monster("Altoblepas", tier="mini_boss", sellable_drops=_drops("Cracked Hunting Horn", "Squawker Horn", "Vocal Sac")),
+    Monster("Big Coryn", tier="mini_boss", sellable_drops=_drops("Apple", "Hard Apple", "Plant Skin", "Young Branch")),
+    Monster("Boss Colon", tier="mini_boss", sellable_drops=_drops("Boss Colon Skin", "Colon Leaf", "Colon Skin", "Apple", "Plant Skin", "Young Branch")),
+    Monster("Crimsosch", tier="mini_boss", sellable_drops=_drops("Thick Frog Skin", "Athema Stone", "Twinkle Stone")),
+    Monster("Don Yeti", tier="mini_boss", sellable_drops=_drops("Cracked Big Axe", "Cold Wood Stick", "Thick Fur")),
+    Monster("Golden Coryn", tier="mini_boss", sellable_drops=_drops("Golden Apple", "Apple", "Plant Skin", "Young Branch")),
+    Monster("Golden Potum", tier="mini_boss", sellable_drops=_drops("Potum Gold Coin", "Potum Silver Coin", "Potum Bronze Coin", "Potum Nail")),
+    Monster("King Potum", tier="mini_boss", sellable_drops=_drops("Bead Fragment", "Potum Crown", "Potum Nail")),
+    Monster("Miracle Potum", tier="mini_boss", sellable_drops=_drops("Morning Star", "Potum Nail")),
+    Monster("Nightmare Potum", tier="mini_boss", sellable_drops=_drops("Potum's Soul", "Purification Salt", "Filthy Bandage", "Potum Nail")),
+    Monster("Seraph Machina", tier="mini_boss", sellable_drops=_drops("Broken Magic Device", "Angel Heart", "Light Emitting Cloth")),
+    Monster("Tortuga", tier="mini_boss", sellable_drops=_drops("Lizard Skin", "Soft Reptile Skin")),
+    Monster("Vevela", tier="mini_boss", sellable_drops=_drops("Bent Candlestand", "Blue Flame Wax", "Scented Candle")),
+    Monster("Wiltileaf", tier="mini_boss", sellable_drops=_drops("Old Tree Sap", "Spiral Tree Bark", "Tangled Roots")),
+
+    # NORMAL
+    Monster("Colon", tier="normal", sellable_drops=_drops("Colon Leaf", "Colon Skin", "Apple", "Plant Skin", "Young Branch")),
+    Monster("Raffy", tier="normal", sellable_drops=_drops("Fluffy Fur", "Short Nail")),
+    Monster("Pico", tier="normal", sellable_drops=_drops("Bird Wing", "Long Beak")),
+    Monster("Pomum", tier="normal", sellable_drops=_drops("Pomum Leaf")),
+    Monster("Torpo", tier="normal", sellable_drops=_drops("Spider Thread")),
+    Monster("Ruin Rat", tier="normal", sellable_drops=_drops("Rat Hair", "Dirty Nail")),
+    Monster("Wooly", tier="normal", sellable_drops=_drops("Small Hilt", "Small Gloves", "High Quality Wool")),
+    Monster("Cobre", tier="normal", sellable_drops=_drops("Twisted Horn", "Hard Dragon Skin", "Orange Crystal Fragment")),
+    Monster("Nemico", tier="normal", sellable_drops=_drops("Bat Claw", "Bat Wing")),
+    Monster("Hound", tier="normal", sellable_drops=_drops("Animal Claw", "Wolf Fur")),
+    Monster("Frosch", tier="normal", sellable_drops=_drops("Frog Skin", "Lotus Leaf")),
+    Monster("Miwi", tier="normal", sellable_drops=_drops("Jagged Fang", "Slimy Skin")),
+    Monster("Savaran", tier="normal", sellable_drops=_drops("Lava Fragment", "Pebble")),
+    Monster("Goblin", tier="normal", sellable_drops=_drops("Dirty Cloth", "Broken Metal")),
+    Monster("Calron", tier="normal", sellable_drops=_drops("Burnt Wood", "Coal")),
+    Monster("Roca", tier="normal", sellable_drops=_drops("Animal Skin", "Turtle Shell")),
+    Monster("Boar", tier="normal", sellable_drops=_drops("Sturdy Fur", "Big Mane")),
+    Monster("Skeleton", tier="normal", sellable_drops=_drops("Fatigued Blade", "Skeleton Bone")),
+    Monster("Euris", tier="normal", sellable_drops=_drops("Slender Branch")),
+    Monster("Pova", tier="normal", sellable_drops=_drops("Soft Leaf")),
+    Monster("Yeti", tier="normal", sellable_drops=_drops("Cold Wood Stick", "Thick Fur")),
+]
+
+# UNIFIED CITY SELL PRICE LOOKUP
+SELL_PRICE_LOOKUP: dict[str, int] = {
+    **{eq.name: eq.sell_value for eq in EQUIPMENTS},
+    **{item.name: item.sell_value for item in EXTRA},
+}
