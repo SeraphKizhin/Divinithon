@@ -1,8 +1,11 @@
-def create_initial_state() -> dict:
+def create_initial_state(
+    god_name: str = "Insatiable Golden Pothos",
+    apostle: str = "Seraph",
+    ) -> dict:
     """Returns a fresh game_state dictionary for a new session."""
     return {
-        "god_name": "Insatiable Golden Pothos",
-        "apostle": "Seraph",
+        "god_name": god_name,
+        "apostle": apostle,
 
         "lvl": 1,
         "exp": 0,
@@ -21,7 +24,7 @@ def create_initial_state() -> dict:
         "current_action": "Awaiting divine guidance...",
         "action_progress": 0,
         "logbook": [
-            "[00:00] Seraph awakens under the gaze of Insatiable Golden Pothos."
+            f"[00:00] {apostle} awakens under the gaze of {god_name}.
         ],
 
         "godpower": 100,
