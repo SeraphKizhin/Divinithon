@@ -24,7 +24,7 @@ def create_initial_state(
         "current_action": "Awaiting divine guidance...",
         "action_progress": 0,
         "logbook": [
-            f"[00:00] {apostle} awakens under the gaze of {god_name}.
+            f"[00:00] {apostle} awakens under the gaze of {god_name}."
         ],
 
         "godpower": 100,
