@@ -1,34 +1,82 @@
 import streamlit as st
+import html
+from ui.styles import progress_bar_html, render_html, svg_to_img_tag
+
+_AVATAR_RAW_SVG = """
+<svg width="78" height="78" viewBox="0 0 100 100" fill="#262626" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="50" cy="30" r="19"/>
+  <path d="M18 86 C18 62, 32 54, 50 54 C68 54, 82 62, 82 86 Z"/>
+</svg>
+"""
+
+AVATAR_SVG = f'<div style="display:flex; justify-content:center; margin: 4px 0 14px 0;">{svg_to_img_tag(_AVATAR_RAW_SVG, 78, 78)}</div>'
 
 def render_left_column(state: dict) -> None:
-    st.header("Apostle & Resources")
-    
-    st.subheader("Apostle Profile")
-    st.write(f"**Name:** {state['apostle']} | **Level:** {state['lvl']}")
+    exp_pct = (state["exp"] / state["exp_req"] * 100) if state["exp_req"] > 0 else 0
+    hp_pct = (state["cur_hp"] / state["max_hp"] * 100) if state["max_hp"] > 0 else 0
+    quest_pct = state["quest_progress"]
 
-    hp_ratio = max(0.0, min(1.0, state["cur_hp"] / state["max_hp"]))
-    st.progress(
-        hp_ratio,
-        text=f"HP: {state['cur_hp']}/{state['max_hp']}"
-    )
+    apostle_name = html.escape(str(state["apostle"]))
+    quest_text = html.escape(str(state["quest"]))
 
-    exp_ratio = max(0.0, min(1.0, state["exp"] / state["exp_req"]))
-    st.progress(
-        exp_ratio, 
-        text=f"EXP: {state['exp']}/{state['exp_req']}"
-    )
+    apostle_html = f"""
+    <div class="div-card">
+      <div class="div-card-header">Apostle</div>
+      <div class="div-card-body">
+        {AVATAR_SVG}
+        <div class="div-row">
+          <span class="div-label">Name</span>
+          <span class="div-value">{apostle_name}</span>
+        </div>
+        <div class="div-row">
+          <span class="div-label">Level</span>
+          <span class="div-value">{state['lvl']}</span>
+        </div>
+        {progress_bar_html(exp_pct, "#f4d04e")}
+        <div class="div-row">
+          <span class="div-label">Health</span>
+          <span class="div-value">{state['cur_hp']}/{state['max_hp']}</span>
+        </div>
+        {progress_bar_html(hp_pct, "#12b84c")}
+        <div class="div-row" style="margin-bottom:2px;">
+          <span class="div-label">Quest</span>
+        </div>
+        <div class="div-serif">&ldquo;{quest_text}&rdquo;</div>
+        {progress_bar_html(quest_pct, "#f6b7c1")}
+        <div class="div-row">
+          <span class="div-label">Gold</span>
+          <span class="div-value">{state['gold']}</span>
+        </div>
+        <div class="div-row">
+          <span class="div-label">Monster Defeated</span>
+          <span class="div-value">{state['monster_defeated']}</span>
+        </div>
+        <div class="div-row" style="margin-bottom:0;">
+          <span class="div-label">Death Count</span>
+          <span class="div-value">{state['death_count']}</span>
+        </div>
+      </div>
+    </div>
+    """
+    render_html(apostle_html)
 
-    st.write(
-        f"**Gold:** {state['gold']} \n "
-        f"**Monsters Defeated:** {state['monster_defeated']} \n "
-        f"**Death Count:** {state['death_count']}"
-    )
-    
-    st.divider()
-    
-    st.subheader("Inventory")
     if not state["inventory"]:
-        st.caption("Inventory is empty.")
+        inv_rows = '<div style="color:#888888; font-size:0.88rem;">Inventory is empty.</div>'
     else:
-        for item, qty in state["inventory"].items():
-            st.write(f"`[{item} x{qty}]`")
+        inv_rows = "".join(
+            f'<div class="div-row">'
+            f'<span>{html.escape(str(item))}</span>'
+            f'<span>x{qty}</span>'
+            f'</div>'
+            for item, qty in state["inventory"].items()
+        )
+
+    inventory_html = f"""
+    <div class="div-card">
+      <div class="div-card-header">Inventory</div>
+      <div class="div-card-body" style="min-height: 290px;">
+        {inv_rows}
+      </div>
+    </div>
+    """
+    render_html(inventory_html)
