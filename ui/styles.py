@@ -1,5 +1,6 @@
 import streamlit as st
 
+
 def inject_custom_css() -> None:
     st.markdown(
         """
@@ -15,13 +16,13 @@ def inject_custom_css() -> None:
             max-width: 1350px;
         }
         .div-card {
-            background-color: #f7f7f7:
+            background-color: #f7f7f7;
             border: 1px solid #d9d9d9;
             border-radius: 10px;
             overflow: hidden;
             margin-bottom: 14px;
         }
-        div-card-header {
+        .div-card-header {
             background-color: #ececec;
             border-bottom: 1px solid #e0e0e0;
             text-align: center;
@@ -46,7 +47,7 @@ def inject_custom_css() -> None:
             font-weight: 700;
         }
         .div-value {
-            color: #444444
+            color: #444444;
         }
         .div-bar-track {
             width: 100%;
@@ -56,7 +57,7 @@ def inject_custom_css() -> None:
             border-radius: 999px;
             overflow: hidden;
             margin-top: 2px;
-            margin_bottom: 10px;
+            margin-bottom: 10px;
         }
         .div-bar-fill {
             height: 100%;
@@ -121,14 +122,16 @@ def inject_custom_css() -> None:
             background-color: #e2e2e2 !important;
             border-color: #b5b5b5 !important;
         }
-        </styles>
+        </style>
         """,
         unsafe_allow_html=True,
     )
+
 
 def progress_bar_html(percent: float, color: str) -> str:
     clamped = max(0.0, min(100.0, float(percent)))
     return (
         f'<div class="div-bar-track">'
         f'<div class="div-bar-fill" style="width:{clamped:.1f}%; background-color:{color};"></div>'
+        f'</div>'
     )

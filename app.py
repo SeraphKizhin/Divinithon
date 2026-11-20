@@ -3,11 +3,13 @@ from ui.creation_page import render_creation_page
 from ui.left_panel import render_left_column
 from ui.center_panel import render_center_column
 from ui.right_panel import render_right_column
+from ui.styles import inject_custom_css
 
 st.set_page_config(
     page_title="Divinithon Dashboard", 
     layout="wide"
 )
+inject_custom_css()
 
 # INITIALIZATION OF GAME STATE (run once)
 if not st.session_state.get("logged_in", False):
@@ -16,18 +18,18 @@ if not st.session_state.get("logged_in", False):
 
 state = st.session_state.game_state
 
-header_left, header_right = st.columns([5, 1])
+header_left, header_right = st.columns([6, 1])
 with header_left:
-    st.title(f"Divinithon — {state['god_name']}")
+    st.markdown(
+        f"<h3 style='margin:0; color:#333333;'>Divinithon &mdash; {state['god_name']}</h3>",
+        unsafe_allow_html=True,
+    )
 with header_right:
-    st.write("")  # Vertical alignment spacer
     if st.button("Log Out", use_container_width=True):
         st.session_state.clear()
         st.rerun()
 
-st.divider()
-
-col_left, col_center, col_right = st.columns([1, 1.5, 1])
+col_left, col_center, col_right = st.columns([1, 1.9, 1], gap="medium")
 
 # LEFT COLUMN: Apostle & Resources
 with col_left:
