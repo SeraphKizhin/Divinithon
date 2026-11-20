@@ -1,15 +1,15 @@
 import streamlit as st
 import html
-from ui.styles import progress_bar_html
+from ui.styles import progress_bar_html, render_html, svg_to_img_tag
 
-AVATAR_SVG = """
-<div style="display:flex; justify-content:center; margin: 4px 0 14px 0;">
+_AVATAR_RAW_SVG = """
 <svg width="78" height="78" viewBox="0 0 100 100" fill="#262626" xmlns="http://www.w3.org/2000/svg">
   <circle cx="50" cy="30" r="19"/>
   <path d="M18 86 C18 62, 32 54, 50 54 C68 54, 82 62, 82 86 Z"/>
 </svg>
-</div>
 """
+
+AVATAR_SVG = f'<div style="display:flex; justify-content:center; margin: 4px 0 14px 0;">{svg_to_img_tag(_AVATAR_RAW_SVG, 78, 78)}</div>'
 
 def render_left_column(state: dict) -> None:
     exp_pct = (state["exp"] / state["exp_req"] * 100) if state["exp_req"] > 0 else 0
@@ -58,7 +58,7 @@ def render_left_column(state: dict) -> None:
       </div>
     </div>
     """
-    st.markdown(apostle_html, unsafe_allow_html=True)
+    render_html(apostle_html)
 
     if not state["inventory"]:
         inv_rows = '<div style="color:#888888; font-size:0.88rem;">Inventory is empty.</div>'
@@ -79,4 +79,4 @@ def render_left_column(state: dict) -> None:
       </div>
     </div>
     """
-    st.markdown(inventory_html, unsafe_allow_html=True)
+    render_html(inventory_html)

@@ -39,4 +39,4 @@ def render_creation_page() -> None:
                         apostle=clean_apostle,
                     )
                     st.session_state.logged_in = True
-                    st.rerun
+                    st.rerun()

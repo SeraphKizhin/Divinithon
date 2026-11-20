@@ -1,5 +1,12 @@
 import streamlit as st
+import base64
 
+def render_html(raw_html: str) -> None:
+    st.html(raw_html)
+
+def svg_to_img_tag(svg_str: str, width: int, height: int) -> str:
+    b64 = base64.b64encode(svg_str.strip().encode("utf-8")).decode("utf-8")
+    return f'<img src="data:image/svg+xml;base64,{b64}" width="{width}" height="{height}" style="display:block;" />'
 
 def inject_custom_css() -> None:
     st.markdown(
@@ -11,7 +18,7 @@ def inject_custom_css() -> None:
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         }
         .block-container {
-            padding-top: 1.5rem;
+            padding-top: 3.5rem !important;
             padding-bottom: 2rem;
             max-width: 1350px;
         }
