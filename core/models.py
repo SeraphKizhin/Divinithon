@@ -17,6 +17,8 @@ class Monster:
     name: str
     tier: MonsterTier = "normal"
     sellable_drops: list[Extra] = field(default_factory=list)
+    hp_mult: float = 1.0
+    dmg_mult: float = 1.0
 
 @dataclass
 class Extra:
@@ -27,6 +29,8 @@ class Extra:
 class ActiveMonster:
     name: str
     tier: MonsterTier
+    level: int
     max_hp: int
     cur_hp: int
     sellable_drops: list[Extra] = field(default_factory=list)
+    dmg_mult: float = 1.0

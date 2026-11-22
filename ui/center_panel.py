@@ -1,7 +1,7 @@
 import streamlit as st
 import html
 import re
-from ui.styles import progress_bar_html
+from ui.styles import progress_bar_html, render_html
 
 def _parse_log_line(line: str) -> tuple[str, str]:
     """Splits '[02:32] Message' or '02:32 Message' into (timestamp, message)."""
@@ -33,20 +33,40 @@ def render_center_column(state: dict) -> None:
     """
     st.markdown(landscape_html, unsafe_allow_html=True)
     
-    action_text = html.escape(str(state["current_action"]))
-    action_html = f"""
-    <div class="div-card">
-      <div class="div-card-header">Current Action</div>
-      <div class="div-card-body" style="padding-top:10px; padding-bottom:10px;">
-        <div class="div-serif">{action_text}</div>
-        {progress_bar_html(state['action_progress'], "#f4d04e")}
-      </div>
-    </div>
-    """
-    st.markdown(action_html, unsafe_allow_html=True)
+    enemy = state.get("active_enemy")
+    if enemy is not None:
+        enemy_hp_pct = max(0.0, min(100.0, (enemy.cur_hp / enemy.max_hp) * 100))
+        tier_badge = ""
+        if enemy.tier == "boss":
+            tier_badge = " [BOSS]"
+        elif enemy.tier == "mini_boss":
+            tier_badge = " [Mini-Boss]"
+
+        action_html = f"""
+        <div class="div-card">
+            <div class="div-card-header">In Combat</div>
+            <div class="div-card-body">
+                {progress_bar_html(enemy_hp_pct, "#e04f4f")}
+                <div class="div-serif" style="margin-top:4px; margin-bottom:0;">
+                    <strong>{enemy.name}{tier_badge}</strong> &bull; Lv. {enemy.level} &bull; {enemy_hp_pct:.0f}%
+                </div>
+            </div>
+        </div>
+        """
+    else:
+        action_html = f"""
+        <div class="div-card">
+            <div class="div-card-header">Current Action</div>
+            <div class="div-card-body">
+                <div class="div-serif">{state["current_action"]}</div>
+                {progress_bar_html(state["action_progress"], "#f0c43c")}
+            </div>
+        </div>
+        """
+    render_html(action_html)
 
     log_items = []
-    for entry in state["logbook"]:
+    for entry in reversed(state["logbook"]):
         timestamp, msg = _parse_log_line(entry)
         log_items.append(
             f'<div class="div-log-entry">'
