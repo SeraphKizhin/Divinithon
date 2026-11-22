@@ -1,8 +1,8 @@
 import random
 from datetime import datetime
 from typing import Literal
-
 from data.log_catalog import CITY_LOGS, IDLE_CHATTER, WILD_LOGS
+from data.world_map import get_node_name
 
 LogZone = Literal["city", "wild", "idle"]
 
@@ -18,7 +18,6 @@ def format_log_entry(
     enemy: str = "",
     quest: str | None = None,
 ) -> str:
-    """Picks a random hard-coded template and returns a timestamped log line."""
     if zone == "idle":
         pool = IDLE_CHATTER
     elif zone == "city":
@@ -31,10 +30,11 @@ def format_log_entry(
     template = random.choice(pool)
     timestamp = datetime.now().strftime("%H:%M")
 
+    location_code = state.get("current_location", "NF")
     message = template.format(
         apostle=state.get("apostle", "Apostle"),
         god=state.get("god_name", "The Sky-Voice"),
-        location=state.get("current_location", "Unknown"),
+        location=get_node_name(location_code),
         quest=quest if quest is not None else state.get("quest", "Mystery Quest"),
         item=item,
         qty=qty,

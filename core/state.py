@@ -23,14 +23,17 @@ def create_initial_state(
 
         "current_action": "Awaiting divine guidance...",
         "action_progress": 0,
+        "active_enemy": None,
         "logbook": [
             f"[00:00] {apostle} awakens under the gaze of {god_name}."
         ],
 
         "godpower": 100,
 
-        "map_nodes": ["NF", "EP", "OE", "MF"],
+        "map_nodes": ["NF", "WW", "OE", "MF"],
         "current_location": "NF",
+        "wild_stay_stacks": 0,
+        "travel": None,
 
         "equipment": {
             "mainhand": None,
