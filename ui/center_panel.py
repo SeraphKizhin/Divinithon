@@ -1,6 +1,7 @@
 import streamlit as st
 import html
 import re
+from datetime import datetime
 from ui.styles import progress_bar_html, render_html
 
 def _parse_log_line(line: str) -> tuple[str, str]:
@@ -101,16 +102,17 @@ def render_center_column(state: dict) -> None:
 
     input_col, btn_col = st.columns([5, 1])
     with input_col:
-        oracle_input = st.text_area(
-            "Oracle Whisper",
+        whisper_input = st.text_area(
+            "Divine Whisper",
             height=68,
             label_visibility="collapsed",
             placeholder="Whisper a divine command to your Apostle...",
-            key="oracle_whisper_input",
+            key="divine_whisper_input",
         )
     with btn_col:
         if st.button("Send", use_container_width=True):
-            if oracle_input.strip():
-                state["logbook"].append(f"[00:00] [Divine Whisper] {oracle_input.strip()}")
+            if whisper_input.strip():
+                now_str = datetime.now().strftime("%H:%M")
+                state["logbook"].append(f"[{now_str}] [Divine Whisper] {whisper_input.strip()}")
                 state["godpower"] = max(0, state["godpower"] - 10)
                 st.rerun()
