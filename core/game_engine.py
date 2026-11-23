@@ -400,5 +400,3 @@ def _complete_quest(state: dict, zone: str) -> None:
     state["quest_progress"] = 0
     add_log(state, zone, "quest_found", quest=state["quest"])
     state["current_action"] = "Preparing for the next quest..."
-
-is this good?

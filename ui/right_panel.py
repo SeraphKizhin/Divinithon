@@ -76,13 +76,43 @@ def _build_map_svg(current_location: str, travel: Optional[dict] = None) -> str:
         )
 
     raw_svg = (
-        '<svg width="270" height="220" viewBox="0 0 290 220" xmlns="http://www.w3.org/2000/svg">'
+        '<svg width="270" height="205" viewBox="0 0 290 220" xmlns="http://www.w3.org/2000/svg">'
         + "".join(lines_svg)
         + "".join(circles_svg)
         + arrow_svg
         + "</svg>"
     )
-    return f'<div style="display:flex; justify-content:center; padding:4px 0;">{svg_to_img_tag(raw_svg, 270, 220)}</div>'
+
+    hotspots_html: list[str] = []
+    for code, info in WORLD_NODES.items():
+        left_pct = (info["x"] / 290) * 100
+        top_pct = (info["y"] / 220) * 100
+        full_name = html.escape(info["name"])
+        label = html.escape(info.get("label", ""))
+        tooltip_text = f"{full_name} ({label})" if label else full_name
+
+        if info["x"] < 90:
+            h_pos = "left: 0;"
+        elif info["x"] > 200:
+            h_pos = "right: 0;"
+        else:
+            h_pos = "left: 50%; transform: translateX(-50%);"
+
+        v_pos = "top: calc(100% + 6px);" if info["y"] < 65 else "bottom: calc(100% + 6px);"
+
+        hotspots_html.append(
+            f'<div class="div-map-hotspot" title="{tooltip_text}" '
+            f'style="left:{left_pct:.2f}%; top:{top_pct:.2f}%;">'
+            f'<span class="div-map-tooltip" style="{h_pos} {v_pos}">{tooltip_text}</span>'
+            f'</div>'
+        )
+
+    return (
+        f'<div class="div-map-wrapper">'
+        f'{svg_to_img_tag(raw_svg, 270, 205)}'
+        f'{"".join(hotspots_html)}'
+        f'</div>'
+    )
 
 
 def render_right_column(state: dict) -> None:
@@ -102,12 +132,8 @@ def render_right_column(state: dict) -> None:
         <div class="div-card-header">Map</div>
         <div class="div-card-body">
             {_build_map_svg(loc_code, travel)}
-            <div class="div-serif" style="margin-top:6px;">
+            <div class="div-serif" style="margin-top:6px; margin-bottom:0;">
                 {loc_caption}
-            </div>
-            <div style="font-size:0.75rem; color:#666666; text-align:center; line-height:1.5;">
-                NF: Northern Front &bull; OE: Open Easel<br>
-                WW: Whispering Willow &bull; MF: Mykitiokan Farlands
             </div>
         </div>
     </div>

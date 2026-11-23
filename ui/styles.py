@@ -129,6 +129,39 @@ def inject_custom_css() -> None:
             background-color: #e2e2e2 !important;
             border-color: #b5b5b5 !important;
         }
+        .div-map-wrapper {
+            position: relative;
+            width: 270px;
+            height: 205px;
+            margin: 4px auto;
+        }
+        .div-map-hotspot {
+            position: absolute;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            cursor: pointer;
+            z-index: 5;
+        }
+        .div-map-tooltip {
+            position: absolute;
+            background-color: #222222;
+            color: #ffffff;
+            font-size: 0.75rem;
+            font-weight: 500;
+            padding: 4px 8px;
+            border-radius: 5px;
+            white-space: nowrap;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.15s ease;
+            z-index: 20;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+        }
+        .div-map-hotspot:hover .div-map-tooltip {
+            opacity: 1;
+        }
         </style>
         """,
         unsafe_allow_html=True,
