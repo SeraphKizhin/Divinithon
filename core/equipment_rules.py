@@ -97,15 +97,27 @@ def try_auto_equip(state: dict, new_item: Equipment) -> bool:
             return True
 
     if current_item is None or new_item.bonus > current_item.bonus:
-        if current_item is not None:
-            state["inventory"][current_item.name] = state["inventory"].get(current_item.name, 0) + 1
+        old_item = current_item
         eq[target_slot] = new_item
 
-        if target_slot == "mainhand" and eq["offhand"] is not None:
-            if not can_equip_offhand(new_item, eq["offhand"]):
+        if target_slot == "mainhand":
+            if eq["offhand"] is not None and not can_equip_offhand(new_item, eq["offhand"]):
                 old_off = eq["offhand"]
                 eq["offhand"] = None
                 state["inventory"][old_off.name] = state["inventory"].get(old_off.name, 0) + 1
+
+            if old_item is not None:
+                cur_off = eq.get("offhand")
+                if can_equip_offhand(new_item, old_item) and (
+                    cur_off is None or old_item.bonus > cur_off.bonus
+                ):
+                    if cur_off is not None:
+                        state["inventory"][cur_off.name] = state["inventory"].get(cur_off.name, 0) + 1
+                    eq["offhand"] = old_item
+                else:
+                    state["inventory"][old_item.name] = state["inventory"].get(old_item.name, 0) + 1
+        elif old_item is not None:
+            state["inventory"][old_item.name] = state["inventory"].get(old_item.name, 0) + 1
 
         _recalc_max_hp(state)
         return True

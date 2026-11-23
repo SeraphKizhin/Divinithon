@@ -157,12 +157,30 @@ def _handle_city_event(state: dict) -> None:
         state["current_action"] = "Haggling at the market..."
 
     elif event == "buying":
-        item = random.choice(EQUIPMENTS).name if EQUIPMENTS else "Health Potion"
-        cost = random.randint(25, min(100, state["gold"]))
-        state["gold"] -= cost
-        state["inventory"][item] = state["inventory"].get(item, 0) + 1
-        add_log(state, "city", "buying", item=item, gold=cost)
-        state["current_action"] = "Inspecting newly bought gear..."
+        if EQUIPMENTS:
+            template = random.choice(EQUIPMENTS)
+            bought_eq = roll_equipment_drop(template, state["lvl"])
+            cost = random.randint(25, min(100, state["gold"]))
+            state["gold"] -= cost
+            equipped = try_auto_equip(state, bought_eq)
+            tag = " [Equipped!]" if equipped else ""
+            add_log(
+                state,
+                "city",
+                "buying",
+                item=f"{bought_eq.name} +{bought_eq.bonus}{tag}",
+                gold=cost,
+            )
+            state["current_action"] = (
+                f"Equipping {bought_eq.name}..." if equipped else "Inspecting newly bought gear..."
+            )
+        else:
+            item = "Health Potion"
+            cost = random.randint(25, min(100, state["gold"]))
+            state["gold"] -= cost
+            state["inventory"][item] = state["inventory"].get(item, 0) + 1
+            add_log(state, "city", "buying", item=item, gold=cost)
+            state["current_action"] = "Inspecting newly bought gear..."
 
     elif event == "depart":
         neighbors = get_neighbors(state["current_location"])
