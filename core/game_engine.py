@@ -1,23 +1,17 @@
 import random
+import time
 from datetime import datetime
 from core.log_generator import add_log
 from core.models import ActiveMonster
 from core.monster_engine import roll_rewards, spawn_monster, calculate_monster_exp
-from data.catalog import EQUIPMENTS, MONSTERS, SELL_PRICE_LOOKUP
+from data.catalog import EQUIPMENTS, EXTRA, MONSTERS, SELL_PRICE_LOOKUP
 from data.world_map import get_neighbors, get_node_name, get_node_zone
 from core.equipment_rules import (
     get_equipment_stats,
     roll_equipment_drop,
     try_auto_equip,
 )
-
-SAMPLE_QUESTS = [
-    "Explore the Whispering Woods",
-    "Clear the Rat Cellar",
-    "Deliver the Suspicious Parcel",
-    "Hunt 5 Rowdy Goblins",
-    "Recover the Lost Relic",
-]
+from data.quest_catalog import roll_new_quest
 
 TIER_REWARDS = {
     "normal": {"exp": 25, "quest": 20, "base_atk": 4},
@@ -70,7 +64,14 @@ def _resolve_combat_tick(state: dict) -> None:
     if enemy.cur_hp <= 0:
         state["monster_defeated"] += 1
         tier_cfg = TIER_REWARDS[enemy.tier]
-        state["quest_progress"] = min(100, state["quest_progress"] + tier_cfg["quest"])
+        q_data = state.get("quest_data", {"type": "standard"})
+        q_type = q_data.get("type", "standard")
+
+        if q_type == "boss_hunt":
+            if enemy.name == q_data.get("target_boss"):
+                state["quest_progress"] = 100
+        elif q_type == "standard":
+            state["quest_progress"] = min(100, state["quest_progress"] + tier_cfg["quest"])
 
         rewards = roll_rewards(enemy, EQUIPMENTS, apostle_lvl=state["lvl"])
         loot_names: list[str] = []
@@ -96,6 +97,8 @@ def _resolve_combat_tick(state: dict) -> None:
         state["active_enemy"] = None
         state["action_progress"] = 0
         state["current_action"] = f"Catching a breath in {get_node_name(state['current_location'])}..."
+        if q_type == "boss_hunt" and state["quest_progress"] >= 100:
+            _complete_quest(state, "wild")
         return
 
     raw_dmg = _get_enemy_attack(enemy)
@@ -128,14 +131,14 @@ def _resolve_combat_tick(state: dict) -> None:
 
 def _handle_city_event(state: dict) -> None:
     if state["quest_progress"] >= 100:
-        reward = random.randint(40, 100)
-        state["gold"] += reward
-        add_log(state, "city", "quest_complete", quest=state["quest"], gold=reward)
-        state["quest_progress"] = 0
-        state["quest"] = random.choice(SAMPLE_QUESTS)
-        add_log(state, "city", "quest_found", quest=state["quest"])
-        state["current_action"] = "Preparing to head back out..."
+        _complete_quest(state, "city")
         return
+
+    if state.get("quest_data", {}).get("type") == "absurd":
+        wild_neighbors = [n for n in get_neighbors(state["current_location"]) if get_node_zone(n) != "city"]
+        if wild_neighbors:
+            _start_travel(state, random.choice(wild_neighbors))
+            return
 
     choices = ["wandering", "wandering"]
     if state["inventory"]:
@@ -187,19 +190,20 @@ def _handle_city_event(state: dict) -> None:
         _start_travel(state, random.choice(neighbors))
 
     else:
-        neighbors = get_neighbors(state["current_location"])
-        _start_travel(state, random.choice(neighbors))
+        add_log(state, "city", "wandering")
+        state["current_action"] = f"Strolling through {get_node_name(state['current_location'])}..."
 
 
 def _handle_wild_event(state: dict) -> None:
+    q_data = state.get("quest_data", {"type": "standard"})
+
+    if q_data.get("type") == "absurd":
+        elapsed = time.time() - q_data.get("start_time", time.time())
+        duration = max(1, q_data.get("duration_sec", 120))
+        state["quest_progress"] = min(100, int((elapsed / duration) * 100))
+
     if state["quest_progress"] >= 100:
-        reward = random.randint(60, 140)
-        state["gold"] += reward
-        add_log(state, "wild", "quest_complete", quest=state["quest"], gold=reward)
-        state["quest_progress"] = 0
-        state["quest"] = random.choice(SAMPLE_QUESTS)
-        add_log(state, "wild", "quest_found", quest=state["quest"])
-        state["current_action"] = "Catching a breath after the quest..."
+        _complete_quest(state, "wild")
         return
 
     roll = random.random()
@@ -207,7 +211,8 @@ def _handle_wild_event(state: dict) -> None:
     if roll < 0.25:
         state["wild_stay_stacks"] = state.get("wild_stay_stacks", 0) + 1
         add_log(state, "wild", "wandering")
-        state["quest_progress"] = min(100, state["quest_progress"] + 15)
+        if q_data.get("type") == "standard":
+            state["quest_progress"] = min(100, state["quest_progress"] + 15)
         state["current_action"] = f"Exploring {get_node_name(state['current_location'])}..."
 
     elif roll < 0.38:
@@ -226,6 +231,14 @@ def _handle_wild_event(state: dict) -> None:
             monsters_catalog=MONSTERS,
             wild_stay_stacks=stacks,
         )
+        if (
+            q_data.get("type") == "boss_hunt"
+            and enemy.tier == "boss"
+            and random.random() < 0.60
+        ):
+            target_pool = [m for m in MONSTERS if m.name == q_data.get("target_boss")]
+            if target_pool:
+                enemy = spawn_monster(state["lvl"], target_pool, wild_stay_stacks=stacks)
         state["active_enemy"] = enemy
 
         if enemy.tier in ("mini_boss", "boss"):
@@ -239,12 +252,15 @@ def _handle_wild_event(state: dict) -> None:
 
     else:
         neighbors = get_neighbors(state["current_location"])
-        next_node = random.choice(neighbors)
-        state["current_location"] = next_node
-        state["wild_stay_stacks"] = 0
-        next_zone = get_node_zone(next_node)
-        state["current_action"] = f"Heading toward {get_node_name(next_node)}..."
-        add_log(state, next_zone, "wandering")
+        if q_data.get("type") == "absurd":
+            wild_neighbors = [n for n in neighbors if get_node_zone(n) != "city"]
+            if wild_neighbors:
+                _start_travel(state, random.choice(wild_neighbors))
+            else:
+                add_log(state, "wild", "wandering")
+                state["current_action"] = f"Refusing to go to town until '{state['quest']}' is done..."
+        else:
+            _start_travel(state, random.choice(neighbors))
 
 
 def run_game_tick(state: dict) -> None:
@@ -256,6 +272,11 @@ def run_game_tick(state: dict) -> None:
 
     is_traveling = state.get("travel") is not None
     zone = get_node_zone(state["current_location"])
+    q_data = state.get("quest_data", {})
+    if zone != "city" and q_data.get("type") == "absurd":
+        elapsed = time.time() - q_data.get("start_time", time.time())
+        duration = max(1, q_data.get("duration_sec", 120))
+        state["quest_progress"] = min(100, int((elapsed / duration) * 100))
 
     if not is_traveling and zone == "city" and state["cur_hp"] < state["max_hp"]:
         state["cur_hp"] = min(state["max_hp"], state["cur_hp"] + 10)
@@ -332,3 +353,52 @@ def _handle_road_event(state: dict) -> None:
             f"({travel['progress']}/{travel['steps']}).",
         )
         state["current_action"] = f"Walking to {dest_name}..."
+
+def _complete_quest(state: dict, zone: str) -> None:
+    q_data = state.get("quest_data", {"type": "standard"})
+    q_type = q_data.get("type", "standard")
+
+    if q_type == "boss_hunt":
+        reward_gold = random.randint(120, 220)
+        equip_chance = 0.75
+        extra_chance = 0.80
+    else:
+        reward_gold = random.randint(40, 120)
+        equip_chance = 0.35
+        extra_chance = 0.60
+
+    state["gold"] += reward_gold
+    bonus_loot: list[str] = []
+
+    if EQUIPMENTS and random.random() < equip_chance:
+        eq = roll_equipment_drop(random.choice(EQUIPMENTS), state["lvl"])
+        equipped = try_auto_equip(state, eq)
+        tag = " [Equipped!]" if equipped else ""
+        bonus_loot.append(f"{eq.name} +{eq.bonus}{tag}")
+
+    if EXTRA and random.random() < extra_chance:
+        extra_item = random.choice(EXTRA)
+        qty = random.randint(1, 2)
+        state["inventory"][extra_item.name] = state["inventory"].get(extra_item.name, 0) + qty
+        bonus_loot.append(f"{extra_item.name} x{qty}")
+
+    if q_type == "absurd" and q_data.get("completion_log"):
+        story = q_data["completion_log"].format(apostle=state["apostle"])
+        loot_str = f" Bonus: {', '.join(bonus_loot)}." if bonus_loot else ""
+        _log_raw(
+            state,
+            f"QUEST COMPLETE ({state['quest']}): {story} (+{reward_gold}g){loot_str}",
+        )
+    else:
+        add_log(state, zone, "quest_complete", quest=state["quest"], gold=reward_gold)
+        if bonus_loot:
+            _log_raw(state, f"Quest Bonus Rewards: {', '.join(bonus_loot)}.")
+
+    new_q = roll_new_quest(MONSTERS)
+    state["quest"] = new_q["title"]
+    state["quest_data"] = new_q
+    state["quest_progress"] = 0
+    add_log(state, zone, "quest_found", quest=state["quest"])
+    state["current_action"] = "Preparing for the next quest..."
+
+is this good?

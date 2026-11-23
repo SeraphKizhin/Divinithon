@@ -1,7 +1,8 @@
 import random
 from dataclasses import replace
 from core.models import Equipment
-from data.catalog import EQUIPMENTS
+from data.catalog import EQUIPMENTS, MONSTERS
+from data.quest_catalog import roll_new_quest
 
 def _create_starter_equipment() -> dict[str, Equipment | None]:
     mainhand_pool = [eq for eq in EQUIPMENTS if eq.slot == "mainhand"]
@@ -27,6 +28,9 @@ def create_initial_state(
     god_name: str = "Insatiable Golden Pothos",
     apostle: str = "Seraph",
     ) -> dict:
+    starter_eq = _create_starter_equipment()
+    starting_hp = 50 + (starter_eq["body"].bonus if starter_eq["body"] else 0)
+    initial_quest = roll_new_quest(MONSTERS)
     return {
         "god_name": god_name,
         "apostle": apostle,
@@ -37,7 +41,8 @@ def create_initial_state(
         "max_hp": starting_hp,
         "cur_hp": starting_hp,
 
-        "quest": "Explore the Whispering Woods",
+        "quest": initial_quest["title"],
+        "quest_data": initial_quest,
         "quest_progress": 0,
         "gold": 0,
         "monster_defeated": 0,
