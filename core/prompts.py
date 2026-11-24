@@ -1,20 +1,3 @@
-"""core/prompts.py
-
-System prompts, prompt builders, and response parsing for the Apostle persona
-in Divinithon (Trello #19: System Prompt, Formatting & Guardrails).
-
-The model is NOT a chatbot here. Its output is a small "game packet":
-
-    {"action": "<one of ALLOWED_ACTIONS>", "target": "<name or none>", "dialogue": "<1-2 sentences>"}
-
-Layers of protection, from outside in:
-1. SYSTEM prompt   - persona, JSON schema, PG-13 rules, anti-injection rules.
-2. USER prompt     - game state + the player's whisper, sanitized and fenced as untrusted data.
-3. looks_like_injection() - cheap heuristic that tells the model up front when a whisper looks hostile.
-4. parse_apostle_response() - never trusts the model: extracts, validates, reconciles with game
-   state, filters the dialogue, and always returns a safe ApostlePacket (never raises).
-"""
-
 import json
 import random
 import re

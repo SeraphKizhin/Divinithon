@@ -2,6 +2,7 @@ import streamlit as st
 import html
 import re
 from datetime import datetime
+from core.llm_client import ask_apostle
 from ui.styles import progress_bar_html, render_html
 
 def _parse_log_line(line: str) -> tuple[str, str]:
@@ -111,8 +112,13 @@ def render_center_column(state: dict) -> None:
         )
     with btn_col:
         if st.button("Send", use_container_width=True):
-            if whisper_input.strip():
+            clean_whisper = whisper_input.strip()
+            if clean_whisper:
                 now_str = datetime.now().strftime("%H:%M")
-                state["logbook"].append(f"[{now_str}] [Divine Whisper] {whisper_input.strip()}")
+                state["logbook"].append(f"[{now_str}] [Divine Whisper] {clean_whisper}")
                 state["godpower"] = max(0, state["godpower"] - 10)
+                packet = ask_apostle(state, clean_whisper)
+                if packet.dialogue:
+                    apostle_name = state.get("apostle", "Apostle")
+                    state["logbook"].append(f"[{now_str}] {apostle_name}: {packet.dialogue}")
                 st.rerun()
