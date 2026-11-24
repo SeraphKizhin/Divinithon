@@ -56,6 +56,9 @@ def create_initial_state(
         "logbook": [
             f"[00:00] {apostle} awakens under the gaze of {god_name}."
         ],
+        "important_logbook": [
+            f"[00:00] {apostle} awakens under the gaze of {god_name}."
+        ],
 
         "godpower": 100,
 
