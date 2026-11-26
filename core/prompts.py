@@ -34,13 +34,14 @@ ACTION_CATALOG: dict[str, str] = {
     "buy_gear": "Shop for gear in a city (target = an item name, or none).",
     "idle": "Dawdle, ignore the whisper, or be confused. Nothing useful happens (target = none).",
     "hurry": "Pick up the pace and move faster when the deity tells you to hurry (target = none).",
+    "heal": "Call upon divine mending to restore your HP to full when the deity commands you to heal (target = none).",
 }
 ALLOWED_ACTIONS: tuple[str, ...] = tuple(ACTION_CATALOG)
 FALLBACK_ACTION = "idle"
 NO_TARGET = "none"
 
 # While a fight is on, the Apostle is too busy for anything else.
-_COMBAT_ACTIONS = {"attack", "flee", "use_item", "idle"}
+_COMBAT_ACTIONS = {"attack", "flee", "use_item", "idle", "heal"}
 
 FALLBACK_DIALOGUES = (
     "The voice came through all tangled, Lord, so I shall just keep going and look busy.",
@@ -95,6 +96,7 @@ It has exactly three keys, all lowercase:
 - Choose an action that makes sense for the situation: "attack" and "flee" only while you are fighting, "travel" only toward a listed place, "use_item" only for an item you carry, "sell_items" and "buy_gear" only in a city. If the whisper does not fit your situation, or you did not understand it, choose "idle".
 - You can only talk and decide. Never claim to have gained gold, loot, levels, or healing, and never invent numbers that were not in your situation.
 - Choose "hurry" ONLY when the deity tells you to hurry up, move faster, or stop dawdling outside of combat.
+- Choose "heal" ONLY when the deity tells you to heal, recover your wounds, or blesses you with healing.
 
 ## CONTENT STANDARDS (PG-13, NON-NEGOTIABLE)
 - This is a family-friendly fantasy adventure. Cartoonish fantasy combat is fine (swings, thumps, "defeated", "knocked out").

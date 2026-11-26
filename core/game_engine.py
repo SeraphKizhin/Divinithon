@@ -37,6 +37,7 @@ ALREADY_HURRYING_REMARKS = [
 ]
 RESURRECTION_DURATION_SEC = 60.0
 RESURRECTION_GP_COST = 20
+HEAL_GP_COST = 10
 
 def _log_raw(state: dict, message: str, max_entries: int = 50) -> None:
     timestamp = datetime.now().strftime("%H:%M")
@@ -92,7 +93,7 @@ def _resolve_combat_tick(state: dict) -> None:
     if enemy.cur_hp <= 0:
         state["monster_defeated"] += 1
         tier_cfg = TIER_REWARDS[enemy.tier]
-        q_data = state.get("quest_data", {"type": "standard"})
+        q_data = state.get("quest_data") or {"type": "standard"}
         q_type = q_data.get("type", "standard")
         gp_gain = {"normal": 3, "mini_boss": 10, "boss": 25}.get(enemy.tier, 3)
         state["godpower"] = min(100, state["godpower"] + gp_gain)
@@ -171,7 +172,7 @@ def _handle_city_event(state: dict) -> None:
         _complete_quest(state, "city")
         return
 
-    if state.get("quest_data", {}).get("type") == "absurd":
+    if (state.get("quest_data") or {}).get("type") == "absurd":
         wild_neighbors = [n for n in get_neighbors(state["current_location"]) if get_node_zone(n) != "city"]
         if wild_neighbors:
             _start_travel(state, random.choice(wild_neighbors))
@@ -212,7 +213,7 @@ def _handle_wild_event(state: dict) -> None:
     if state.get("quest") is None:
         _assign_new_quest(state, "wild")
         return
-    q_data = state.get("quest_data", {"type": "standard"})
+    q_data = state.get("quest_data") or {"type": "standard"}
 
     if q_data.get("type") == "absurd":
         elapsed = time.time() - q_data.get("start_time", time.time())
@@ -396,7 +397,7 @@ def _handle_road_event(state: dict) -> None:
         state["current_action"] = f"Walking to {dest_name}..."
 
 def _complete_quest(state: dict, zone: str) -> None:
-    q_data = state.get("quest_data", {"type": "standard"})
+    q_data = state.get("quest_data") or {"type": "standard"}
     q_type = q_data.get("type", "standard")
 
     if q_type == "boss_hunt":
@@ -650,6 +651,34 @@ def execute_ai_action(state: dict, packet: ApostlePacket) -> bool:
             state,
             f"{state['apostle']} picks up the pace! (Next {HURRY_CHARGES} actions at {int(new_dur)}s intervals)",
         )
+        return True
+    
+    if action == "heal":
+        if state["godpower"] < HEAL_GP_COST:
+            _log_raw(
+                state,
+                f"({state['apostle']} prayed for healing, but {state['god_name']} lacked the {HEAL_GP_COST} Godpower!)",
+            )
+            return False
+
+        if state["cur_hp"] >= state["max_hp"]:
+            _log_raw(state, f"{state['apostle']} is already at full health!")
+            return False
+
+        state["godpower"] = max(0, state["godpower"] - HEAL_GP_COST)
+        gained = state["max_hp"] - state["cur_hp"]
+        state["cur_hp"] = state["max_hp"]
+
+        _log_raw(
+            state,
+            f"{state['god_name']} channeled {HEAL_GP_COST} Godpower and fully healed "
+            f"{state['apostle']} (+{gained} HP)!",
+        )
+        state["current_action"] = "Bathed in divine healing light!"
+        next_dur = _get_current_auto_interval(state, is_idle=False)
+        state["current_tick_duration"] = next_dur
+        state["next_auto_tick_at"] = time.time() + next_dur
+        state["action_progress"] = 0
         return True
 
     return False

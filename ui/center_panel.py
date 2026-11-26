@@ -10,6 +10,8 @@ IMPORTANT_MARKER = "★"
 WHISPER_COST = 15
 
 HURRY_KEYWORDS = ("hurry", "faster", "quick", "chop chop", "speed up", "move it")
+HEAL_KEYWORDS = ("heal", "cure", "mend", "restore hp", "full hp", "revitalize")
+HEAL_COST = 10
 
 def _parse_log_line(line: str) -> tuple[str, str]:
     """Splits '[02:32] Message' or '02:32 Message' into (timestamp, message)."""
@@ -178,19 +180,35 @@ def render_center_column(state: dict) -> None:
             disabled=not can_whisper,
             key="divine_whisper_input",
         )
+    is_heal_text = any(kw in whisper_input.lower() for kw in HEAL_KEYWORDS)
+    can_send_now = godpower >= (HEAL_COST if is_heal_text else WHISPER_COST)
+
     with btn_col2:
         if st.button(
             f"Send (-{WHISPER_COST})",
             use_container_width=True,
-            disabled=not can_whisper,
+            disabled=not can_send_now,
         ):
             clean_whisper = whisper_input.strip()
-            if clean_whisper and state["godpower"] >= WHISPER_COST:
+            is_heal_cmd = any(kw in clean_whisper.lower() for kw in HEAL_KEYWORDS)
+            required_gp = HEAL_COST if is_heal_cmd else WHISPER_COST
+
+            if clean_whisper and state["godpower"] >= required_gp:
                 now_str = datetime.now().strftime("%H:%M")
-                state["godpower"] = max(0, state["godpower"] - WHISPER_COST)
+                if not is_heal_cmd:
+                    state["godpower"] = max(0, state["godpower"] - WHISPER_COST)
+
                 state["logbook"].append(f"[{now_str}] [Divine Whisper] {clean_whisper}")
                 packet = ask_apostle(state, clean_whisper)
+
                 if (
+                    packet.action == "idle"
+                    and state.get("dead_until") is None
+                    and is_heal_cmd
+                ):
+                    packet.action = "heal"
+                    packet.target = "none"
+                elif (
                     packet.action == "idle"
                     and state.get("active_enemy") is None
                     and state.get("dead_until") is None
@@ -198,6 +216,9 @@ def render_center_column(state: dict) -> None:
                 ):
                     packet.action = "hurry"
                     packet.target = "none"
+                if packet.action == "heal" and not is_heal_cmd:
+                    state["godpower"] = min(100, state["godpower"] + WHISPER_COST)
+
                 if packet.dialogue:
                     apostle_name = state.get("apostle", "Apostle")
                     state["logbook"].append(f"[{now_str}] {apostle_name}: {packet.dialogue}")
