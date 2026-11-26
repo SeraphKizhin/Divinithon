@@ -3,7 +3,7 @@ import time
 from core.models import Monster
 
 STANDARD_QUESTS = [
-    "Explore the Whispering Woods",
+    "Explore the Whispering Willow",
     "Clear the Rat Cellar",
     "Deliver the Suspicious Parcel",
     "Hunt 5 Rowdy Goblins",

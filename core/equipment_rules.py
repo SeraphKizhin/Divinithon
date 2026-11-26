@@ -5,7 +5,7 @@ from dataclasses import replace
 
 ALLOWED_OFFHANDS = {
     "OHS": {"SHIELD", "ARROW", "SCROLL", "MD", "KNUX", "OHS"},
-    "THS": {"SHIELD", "ARROW", "SCROLL", "MD", "KNUX"},
+    "THS": set(),
     "BOW": {"SHIELD", "ARROW", "SCROLL", "MD", "KNUX"},
     "STAFF": {"SHIELD", "ARROW", "SCROLL", "MD", "KNUX"},
     "MD": {"SHIELD", "ARROW", "SCROLL", "KNUX"},
@@ -21,9 +21,9 @@ BONUS_WEIGHTS = [10, 15, 20, 25, 30, 35, 25, 20, 15, 10, 5]
 def can_equip_offhand(mainhand: Optional[Equipment], offhand: Equipment) -> bool:
     if mainhand is None:
         return False
-    if offhand.slot != "offhand" and not offhand.offhandable:
-        return False
     allowed_types = ALLOWED_OFFHANDS.get(mainhand.weapon_type, set())
+    if offhand.slot != "offhand" and not offhand.offhandable and offhand.weapon_type not in allowed_types:
+        return False
     return offhand.weapon_type in allowed_types
 
 def roll_equipment_drop(template: Equipment, apostle_lvl: int) -> Equipment:
@@ -43,7 +43,12 @@ def get_equipment_stats(equipment: dict[str, Optional[Equipment]]) -> dict[str, 
     special = equipment.get("special")
 
     if mainhand:
-        totals["dmg"] += mainhand.bonus
+        if mainhand.weapon_type == "THS":
+            split_bonus = max(1, round(mainhand.bonus * 0.5)) if mainhand.bonus > 0 else 0
+            totals["dmg"] += split_bonus
+            totals["hp"] += split_bonus
+        else:
+            totals["dmg"] += mainhand.bonus
     if special:
         totals["dmg"] += special.bonus
     if body:

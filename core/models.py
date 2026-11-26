@@ -4,6 +4,11 @@ from typing import Optional, Literal
 MonsterTier = Literal["normal", "mini_boss", "boss"]
 
 @dataclass
+class Extra:
+    name: str
+    sell_value: int
+
+@dataclass
 class Equipment:
     name: str
     slot: str
@@ -19,11 +24,6 @@ class Monster:
     sellable_drops: list[Extra] = field(default_factory=list)
     hp_mult: float = 1.0
     dmg_mult: float = 1.0
-
-@dataclass
-class Extra:
-    name: str
-    sell_value: int
 
 @dataclass
 class ActiveMonster:

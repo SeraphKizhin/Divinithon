@@ -1,4 +1,5 @@
 import streamlit as st
+import html
 from ui.creation_page import render_creation_page
 from ui.left_panel import render_left_column
 from ui.center_panel import render_center_column
@@ -24,8 +25,9 @@ state = st.session_state.game_state
 
 header_left, btn_pause, btn_step, btn_logout = st.columns([5, 1, 1, 1])
 with header_left:
+    safe_god = html.escape(str(state["god_name"]))
     st.markdown(
-        f"<h3 style='margin:0; color:#333333;'>Divinithon &mdash; {state['god_name']}</h3>",
+        f"<h3 style='margin:0; color:#333333;'>Divinithon &mdash; {safe_god}</h3>",
         unsafe_allow_html=True,
     )
 with btn_pause:
