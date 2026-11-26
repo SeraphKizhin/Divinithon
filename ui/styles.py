@@ -91,6 +91,14 @@ def inject_custom_css() -> None:
             gap: 14px;
             margin-bottom: 10px;
         }
+        .div-logbook-title {
+            font-family: Georgia, "Times New Roman", serif;
+            font-size: 1rem;
+            font-weight: 600;
+            color: #444444;
+            text-align: center;
+            line-height: 1.2;
+        }
         .div-log-time {
             color: #444444;
             min-width: 44px;
@@ -128,6 +136,62 @@ def inject_custom_css() -> None:
         div[data-testid="stButton"] button:hover {
             background-color: #e2e2e2 !important;
             border-color: #b5b5b5 !important;
+        }
+        .div-map-wrapper {
+            position: relative;
+            width: 270px;
+            height: 205px;
+            margin: 4px auto;
+        }
+        .div-map-hotspot {
+            position: absolute;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            cursor: pointer;
+            z-index: 5;
+        }
+        .div-map-tooltip {
+            position: absolute;
+            background-color: #222222;
+            color: #ffffff;
+            font-size: 0.75rem;
+            font-weight: 500;
+            padding: 4px 8px;
+            border-radius: 5px;
+            white-space: nowrap;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.15s ease;
+            z-index: 20;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+        }
+        .div-map-hotspot:hover .div-map-tooltip {
+            opacity: 1;
+        }
+        .st-key-logbook_card_box {
+            position: relative;
+        }
+        .st-key-logbook_card_box .st-key-open_important_logs_btn {
+            position: absolute !important;
+            top: 21px;                  /* 1px card border + half of the 40px header */
+            left: 10px;
+            transform: translateY(-50%);
+            width: auto !important;
+            z-index: 5;
+        }
+        .st-key-logbook_card_box .st-key-open_important_logs_btn div[data-testid="stButton"] {
+            width: auto !important;
+        }
+        .st-key-logbook_card_box .st-key-open_important_logs_btn button {
+            min-height: 26px !important;
+            height: 26px !important;
+            width: auto !important;
+            padding: 0 12px !important;
+            font-size: 0.82rem !important;
+            line-height: 1 !important;
+            white-space: nowrap !important;
         }
         </style>
         """,

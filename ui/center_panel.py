@@ -2,8 +2,11 @@ import streamlit as st
 import html
 import re
 from datetime import datetime
-from core.llm_client import ask_apostle
 from ui.styles import progress_bar_html, render_html
+from core.llm_client import ask_apostle
+
+IMPORTANT_MARKER = "★"
+
 
 def _parse_log_line(line: str) -> tuple[str, str]:
     """Splits '[02:32] Message' or '02:32 Message' into (timestamp, message)."""
@@ -11,6 +14,32 @@ def _parse_log_line(line: str) -> tuple[str, str]:
     if match:
         return match.group(1), match.group(2)
     return "--:--", line.strip()
+
+
+@st.dialog("Akashic Records", width="large")
+def show_important_logs(state: dict) -> None:
+    entries = state.get("important_logbook") or []
+    if not entries:
+        st.caption("Nothing worthy of legend yet. Go do something reckless.")
+    else:
+        log_items = []
+        for entry in reversed(entries):
+            cleaned = entry.replace(IMPORTANT_MARKER, "").strip()
+            timestamp, msg = _parse_log_line(cleaned)
+            log_items.append(
+                f'<div class="div-log-entry">'
+                f'<div class="div-log-time">{html.escape(timestamp)}</div>'
+                f'<div class="div-log-msg">{html.escape(msg)}</div>'
+                f'</div>'
+            )
+        st.markdown(
+            f'<div class="div-log-box" style="height:420px;">{"".join(log_items)}</div>',
+            unsafe_allow_html=True,
+        )
+
+    if st.button("Close", use_container_width=True, key="close_important_logs"):
+        st.rerun()
+
 
 def render_center_column(state: dict) -> None:
     landscape_html = f"""
@@ -34,7 +63,7 @@ def render_center_column(state: dict) -> None:
     </div>
     """
     st.markdown(landscape_html, unsafe_allow_html=True)
-    
+
     enemy = state.get("active_enemy")
     if enemy is not None:
         enemy_hp_pct = max(0.0, min(100.0, (enemy.cur_hp / enemy.max_hp) * 100))
@@ -69,7 +98,8 @@ def render_center_column(state: dict) -> None:
 
     log_items = []
     for entry in reversed(state["logbook"]):
-        timestamp, msg = _parse_log_line(entry)
+        cleaned = entry.replace(IMPORTANT_MARKER, "").strip()
+        timestamp, msg = _parse_log_line(cleaned)
         log_items.append(
             f'<div class="div-log-entry">'
             f'<div class="div-log-time">{html.escape(timestamp)}</div>'
@@ -77,31 +107,44 @@ def render_center_column(state: dict) -> None:
             f'</div>'
         )
     logs_html = "".join(log_items)
-    
     godpower = max(0, min(100, int(state["godpower"])))
-    logbook_and_power_html = f"""
-    <div class="div-card" style="margin-bottom: 8px;">
-      <div class="div-card-header">Logbook</div>
-      <div class="div-log-box">
-        {logs_html}
-      </div>
-      <div class="div-card-header" style="border-top: 1px solid #e0e0e0;">Power</div>
-      <div class="div-card-body" style="padding-bottom: 6px;">
-        <div style="display:flex; align-items:center; gap:12px;">
-          <span style="font-size:0.9rem; color:#333333; white-space:nowrap;">Godpower</span>
-          <div style="flex:1;">
-            <div class="div-bar-track" style="margin:0;">
-              <div class="div-bar-fill" style="width:{godpower}%; background-color:#0044b3;"></div>
-            </div>
-          </div>
-          <span style="font-size:0.9rem; color:#333333; min-width:36px; text-align:right;">{godpower}%</span>
-        </div>
-      </div>
-    </div>
-    """
-    st.markdown(logbook_and_power_html, unsafe_allow_html=True)
 
-    input_col, btn_col = st.columns([5, 1])
+    with st.container(key="logbook_card_box"):
+        if st.button(
+            "Important",
+            key="open_important_logs_btn",
+            help="Show only major events: level ups, boss kills, quest completions, deaths.",
+        ):
+            show_important_logs(state)
+
+        st.markdown(
+            f"""
+            <div class="div-card" style="margin-bottom: 0;">
+              <div class="div-card-header" style="height:40px; box-sizing:border-box; display:flex; align-items:center; justify-content:center;">Logbook</div>
+              <div class="div-log-box">
+                {logs_html}
+              </div>
+              <div class="div-card-header" style="border-top: 1px solid #e0e0e0;">Power</div>
+              <div class="div-card-body" style="padding-bottom: 6px;">
+                <div style="display:flex; align-items:center; gap:12px;">
+                  <span style="font-size:0.9rem; color:#333333; white-space:nowrap;">Godpower</span>
+                  <div style="flex:1;">
+                    <div class="div-bar-track" style="margin:0;">
+                      <div class="div-bar-fill"
+                           style="width:{godpower}%; background-color:#0044b3;"></div>
+                    </div>
+                  </div>
+                  <span style="font-size:0.9rem; color:#333333; min-width:36px; text-align:right;">
+                    {godpower}%
+                  </span>
+                </div>
+              </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    input_col, btn_col2 = st.columns([5, 1])
     with input_col:
         whisper_input = st.text_area(
             "Divine Whisper",
@@ -110,7 +153,7 @@ def render_center_column(state: dict) -> None:
             placeholder="Whisper a divine command to your Apostle...",
             key="divine_whisper_input",
         )
-    with btn_col:
+    with btn_col2:
         if st.button("Send", use_container_width=True):
             clean_whisper = whisper_input.strip()
             if clean_whisper:
