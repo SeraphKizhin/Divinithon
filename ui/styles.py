@@ -91,6 +91,14 @@ def inject_custom_css() -> None:
             gap: 14px;
             margin-bottom: 10px;
         }
+        .div-logbook-title {
+            font-family: Georgia, "Times New Roman", serif;
+            font-size: 1rem;
+            font-weight: 600;
+            color: #444444;
+            text-align: center;
+            line-height: 1.2;
+        }
         .div-log-time {
             color: #444444;
             min-width: 44px;
@@ -161,6 +169,29 @@ def inject_custom_css() -> None:
         }
         .div-map-hotspot:hover .div-map-tooltip {
             opacity: 1;
+        }
+        .st-key-logbook_card_box {
+            position: relative;
+        }
+        .st-key-logbook_card_box .st-key-open_important_logs_btn {
+            position: absolute !important;
+            top: 21px;                  /* 1px card border + half of the 40px header */
+            left: 10px;
+            transform: translateY(-50%);
+            width: auto !important;
+            z-index: 5;
+        }
+        .st-key-logbook_card_box .st-key-open_important_logs_btn div[data-testid="stButton"] {
+            width: auto !important;
+        }
+        .st-key-logbook_card_box .st-key-open_important_logs_btn button {
+            min-height: 26px !important;
+            height: 26px !important;
+            width: auto !important;
+            padding: 0 12px !important;
+            font-size: 0.82rem !important;
+            line-height: 1 !important;
+            white-space: nowrap !important;
         }
         </style>
         """,

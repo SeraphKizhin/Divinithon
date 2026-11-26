@@ -18,7 +18,7 @@ TIER_REWARDS = {
     "mini_boss": {"exp": 60, "quest": 35, "base_atk": 8},
     "boss": {"exp": 150, "quest": 50, "base_atk": 13},
 }
-
+IMPORTANT_MARKER = "★"
 
 def _log_raw(state: dict, message: str, max_entries: int = 50) -> None:
     timestamp = datetime.now().strftime("%H:%M")
@@ -26,6 +26,16 @@ def _log_raw(state: dict, message: str, max_entries: int = 50) -> None:
     if len(state["logbook"]) > max_entries:
         state["logbook"] = state["logbook"][-max_entries:]
 
+def _log_important(state: dict, message: str) -> None:
+    """Logs a message to both the rolling logbook and the permanent important log."""
+    timestamp = datetime.now().strftime("%H:%M")
+    entry = f"[{timestamp}] {IMPORTANT_MARKER} {message}"
+
+    state["logbook"].append(entry)
+    if len(state["logbook"]) > 50:
+        state["logbook"] = state["logbook"][-50:]
+
+    state.setdefault("important_logbook", []).append(entry)
 
 def _get_apostle_attack(state: dict) -> int:
     dmg_bonus = get_equipment_stats(state["equipment"])["dmg"]
@@ -47,11 +57,12 @@ def _grant_exp(state: dict, amount: int) -> None:
         body_hp = get_equipment_stats(state["equipment"])["hp"]
         state["max_hp"] = 50 + (state["lvl"] - 1) * 15 + body_hp
         state["cur_hp"] = state["max_hp"]
-        _log_raw(
-            state,
+        Level_up_msg = (
             f"LEVEL UP! {state['apostle']} reached Level {state['lvl']} "
-            f"(Max HP: {state['max_hp']})!",
+            f"(Max HP: {state['max_hp']})!"
         )
+        _log_raw(state,Level_up_msg)
+        _log_important(state,Level_up_msg)
 
 
 def _resolve_combat_tick(state: dict) -> None:
@@ -87,11 +98,10 @@ def _resolve_combat_tick(state: dict) -> None:
 
         loot_text = f" Looted: {', '.join(loot_names)}." if loot_names else ""
         exp_gained = calculate_monster_exp(enemy.tier, enemy.level)
-        _log_raw(
-            state,
-            f"{apostle} dealt {dmg_dealt} dmg and defeated {enemy.name}! "
-            f"(+{exp_gained} EXP){loot_text}",
-        )
+        kill_msg = (f"{apostle} dealt {dmg_dealt} dmg and defeated {enemy.name}!" f"(+{exp_gained} EXP){loot_text}")
+        if enemy.tier in ("mini_boss", "boss"):
+            _log_important(state, kill_msg)
+        _log_raw(state,kill_msg)
 
         _grant_exp(state, exp_gained)
         state["active_enemy"] = None
@@ -107,11 +117,10 @@ def _resolve_combat_tick(state: dict) -> None:
 
     if state["cur_hp"] <= 0:
         state["death_count"] += 1
-        _log_raw(
-            state,
-            f"{enemy.name} landed a fatal blow ({dmg_taken} dmg)! "
-            f"{apostle} blacked out and woke up back in Northern Front.",
-        )
+        death_msg = (f"{enemy.name} landed a fatal blow ({dmg_taken} dmg)! "
+                    f"{apostle} blacked out and woke up back in Northern Front.")
+        _log_important(state, death_msg)
+        _log_raw(state, death_msg)
         state["active_enemy"] = None
         state["travel"] = None
         state["current_location"] = "NF"
@@ -174,6 +183,11 @@ def _handle_city_event(state: dict) -> None:
                 item=f"{bought_eq.name} +{bought_eq.bonus}{tag}",
                 gold=cost,
             )
+            if equipped:
+                _log_important(
+                    state,
+                    f"Acquired and equipped {bought_eq.name} +{bought_eq.bonus}."
+                )
             state["current_action"] = (
                 f"Equipping {bought_eq.name}..." if equipped else "Inspecting newly bought gear..."
             )
@@ -374,6 +388,11 @@ def _complete_quest(state: dict, zone: str) -> None:
         eq = roll_equipment_drop(random.choice(EQUIPMENTS), state["lvl"])
         equipped = try_auto_equip(state, eq)
         tag = " [Equipped!]" if equipped else ""
+        if equipped:
+            _log_important(
+                state,
+                f"Equipping {eq.name}"
+            )
         bonus_loot.append(f"{eq.name} +{eq.bonus}{tag}")
 
     if EXTRA and random.random() < extra_chance:
@@ -385,10 +404,9 @@ def _complete_quest(state: dict, zone: str) -> None:
     if q_type == "absurd" and q_data.get("completion_log"):
         story = q_data["completion_log"].format(apostle=state["apostle"])
         loot_str = f" Bonus: {', '.join(bonus_loot)}." if bonus_loot else ""
-        _log_raw(
-            state,
-            f"QUEST COMPLETE ({state['quest']}): {story} (+{reward_gold}g){loot_str}",
-        )
+        comquest_msg = f"QUEST COMPLETE ({state['quest']}): {story} (+{reward_gold}g){loot_str}"
+        _log_important(state, comquest_msg)
+        _log_raw(state,comquest_msg)
     else:
         add_log(state, zone, "quest_complete", quest=state["quest"], gold=reward_gold)
         if bonus_loot:
@@ -399,4 +417,5 @@ def _complete_quest(state: dict, zone: str) -> None:
     state["quest_data"] = new_q
     state["quest_progress"] = 0
     add_log(state, zone, "quest_found", quest=state["quest"])
+    _log_important(state, f"New quest accepted: '{state['quest']}'.")
     state["current_action"] = "Preparing for the next quest..."
