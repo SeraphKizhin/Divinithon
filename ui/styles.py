@@ -91,6 +91,14 @@ def inject_custom_css() -> None:
             gap: 14px;
             margin-bottom: 10px;
         }
+        .div-logbook-title {
+            font-family: Georgia, "Times New Roman", serif;
+            font-size: 1rem;
+            font-weight: 600;
+            color: #444444;
+            text-align: center;
+            line-height: 1.2;
+        }
         .div-log-time {
             color: #444444;
             min-width: 44px;

@@ -14,8 +14,7 @@ def _parse_log_line(line: str) -> tuple[str, str]:
         return match.group(1), match.group(2)
     return "--:--", line.strip()
 
-
-@st.dialog("Chronicle of Great Deeds", width="large")
+@st.dialog("Omniscient Legacy", width="large")
 def show_important_logs(state: dict) -> None:
     """Modal dialog listing all important log entries."""
     entries = state.get("important_logbook") or []
@@ -96,22 +95,6 @@ def render_center_column(state: dict) -> None:
         """
     render_html(action_html)
 
-    head_l, head_r = st.columns([5, 1])
-    with head_l:
-        st.markdown(
-            '<div class="div-card-header" style="border-radius:10px 10px 0 0; '
-            'margin-bottom:0;">Logbook</div>',
-            unsafe_allow_html=True,
-        )
-    with head_r:
-        if st.button(
-            "Important",
-            use_container_width=True,
-            key="open_important_logs_btn",
-            help="Show only major events: level ups, boss kills, quest completions, deaths.",
-        ):
-            show_important_logs(state)
-
     log_items = []
     for entry in reversed(state["logbook"]):
         cleaned = entry.replace(IMPORTANT_MARKER, "").strip()
@@ -123,30 +106,52 @@ def render_center_column(state: dict) -> None:
             f'</div>'
         )
     logs_html = "".join(log_items)
-
     godpower = max(0, min(100, int(state["godpower"])))
-    logbook_and_power_html = f"""
-    <div class="div-card" style="margin-bottom: 8px; border-top-left-radius:0; border-top-right-radius:0;">
-      <div class="div-log-box" style="border-radius: 0;">
-        {logs_html}
-      </div>
-      <div class="div-card-header" style="border-top: 1px solid #e0e0e0;">Power</div>
-      <div class="div-card-body" style="padding-bottom: 6px;">
-        <div style="display:flex; align-items:center; gap:12px;">
-          <span style="font-size:0.9rem; color:#333333; white-space:nowrap;">Godpower</span>
-          <div style="flex:1;">
-            <div class="div-bar-track" style="margin:0;">
-              <div class="div-bar-fill" style="width:{godpower}%; background-color:#0044b3;"></div>
-            </div>
-          </div>
-          <span style="font-size:0.9rem; color:#333333; min-width:36px; text-align:right;">{godpower}%</span>
-        </div>
-      </div>
-    </div>
-    """
-    st.markdown(logbook_and_power_html, unsafe_allow_html=True)
 
-    input_col, btn_col = st.columns([5, 1])
+    st.markdown('<div class="div-card div-logbook-card">', unsafe_allow_html=True)
+
+    title_col, btn_col = st.columns([5, 1], vertical_alignment="center")
+    with title_col:
+        st.markdown(
+            '<div class="div-logbook-title">Logbook</div>',
+            unsafe_allow_html=True,
+        )
+    with btn_col:
+        if st.button(
+            "Important",
+            use_container_width=True,
+            key="open_important_logs_btn",
+            help="Show only major events: level ups, boss kills, quest completions, deaths.",
+        ):
+            show_important_logs(state)
+
+    st.markdown(
+        f"""
+        <div class="div-log-box" style="border-radius:0; margin-top:0;">
+          {logs_html}
+        </div>
+        <div class="div-card-header" style="border-top:1px solid #e0e0e0;">Power</div>
+        <div class="div-card-body" style="padding-bottom:6px;">
+          <div style="display:flex; align-items:center; gap:12px;">
+            <span style="font-size:0.9rem; color:#333333; white-space:nowrap;">Godpower</span>
+            <div style="flex:1;">
+              <div class="div-bar-track" style="margin:0;">
+                <div class="div-bar-fill"
+                     style="width:{godpower}%; background-color:#0044b3;"></div>
+              </div>
+            </div>
+            <span style="font-size:0.9rem; color:#333333; min-width:36px; text-align:right;">
+              {godpower}%
+            </span>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    input_col, btn_col2 = st.columns([5, 1])
     with input_col:
         whisper_input = st.text_area(
             "Divine Whisper",
@@ -155,7 +160,7 @@ def render_center_column(state: dict) -> None:
             placeholder="Whisper a divine command to your Apostle...",
             key="divine_whisper_input",
         )
-    with btn_col:
+    with btn_col2:
         if st.button("Send", use_container_width=True):
             if whisper_input.strip():
                 now_str = datetime.now().strftime("%H:%M")
