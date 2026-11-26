@@ -5,7 +5,7 @@ from dataclasses import replace
 
 ALLOWED_OFFHANDS = {
     "OHS": {"SHIELD", "ARROW", "SCROLL", "MD", "KNUX", "OHS"},
-    "THS": {"SHIELD", "ARROW", "SCROLL", "MD", "KNUX"},
+    "THS": set(),
     "BOW": {"SHIELD", "ARROW", "SCROLL", "MD", "KNUX"},
     "STAFF": {"SHIELD", "ARROW", "SCROLL", "MD", "KNUX"},
     "MD": {"SHIELD", "ARROW", "SCROLL", "KNUX"},

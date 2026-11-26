@@ -156,7 +156,8 @@ def validate_equip(state: dict[str, Any], item_name: Any, slot: Any = None) -> V
         if mainhand is None:
             return _fail(f"{key} needs a mainhand weapon first, and the hands are empty.", item=key, slot=target)
         if not can_equip_offhand(mainhand, template):
-            return _fail(f"{key} cannot be paired with {mainhand.name} in the offhand.", item=key, slot=target)
+            mh_name = mainhand["name"] if isinstance(mainhand, dict) else mainhand.name
+            return _fail(f"{key} cannot be paired with {mh_name} in the offhand.", item=key, slot=target)
 
     return ValidationResult(True, f"{key} can be equipped in the {target} slot.", item=key, slot=target)
 

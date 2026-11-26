@@ -26,9 +26,10 @@ ACTION_CATALOG: dict[str, str] = {
     "attack": "Fight the enemy you are currently facing (target = that enemy's name).",
     "flee": "Run away from the current fight (target = that enemy's name).",
     "explore": "Look around and poke at things where you are (target = a thing or place, or none).",
-    "travel": "Head toward a neighboring location (target = that location's name).",
+    "go_to": "Head toward a neighboring location (target = that location's name).",
     "rest": "Take a breather and recover (target = none).",
     "use_item": "Use an item you are carrying (target = that item's name).",
+    "equip": "Equip a piece of gear you are carrying (target = that item's name).",
     "sell_items": "Sell loot at a city market (target = an item name, or none).",
     "buy_gear": "Shop for gear in a city (target = an item name, or none).",
     "idle": "Dawdle, ignore the whisper, or be confused. Nothing useful happens (target = none).",
@@ -468,12 +469,12 @@ def _reconcile_with_state(packet: ApostlePacket, state: dict[str, Any]) -> None:
     elif action in ("attack", "flee"):
         return downgrade()
 
-    if action == "travel":
+    if action == "go_to":
         match = _match_name(target, _neighbor_names(state))
         if match is None:
             return downgrade()
         packet.target = match
-    elif action == "use_item":
+    elif action in ("use_item", "equip"):
         match = _match_name(target, list((state.get("inventory") or {}).keys()))
         if match is None:
             return downgrade()
