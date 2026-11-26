@@ -75,8 +75,7 @@ def _recalc_max_hp(state: dict) -> None:
         state["cur_hp"] += new_max - old_max
     state["cur_hp"] = min(state["cur_hp"], state["max_hp"])
 
-
-def try_auto_equip(state: dict, new_item: Equipment) -> bool:
+def try_auto_equip(state: dict, new_item: Equipment, *, force: bool = False) -> bool:
     eq = state["equipment"]
     target_slot = new_item.slot
 
@@ -88,7 +87,8 @@ def try_auto_equip(state: dict, new_item: Equipment) -> bool:
     current_item = eq.get(target_slot)
 
     if (
-        target_slot == "mainhand"
+        not force
+        and target_slot == "mainhand"
         and current_item is not None
         and new_item.bonus <= current_item.bonus
         and can_equip_offhand(current_item, new_item)
@@ -101,7 +101,7 @@ def try_auto_equip(state: dict, new_item: Equipment) -> bool:
             _recalc_max_hp(state)
             return True
 
-    if current_item is None or new_item.bonus > current_item.bonus:
+    if force or current_item is None or new_item.bonus > current_item.bonus:
         old_item = current_item
         eq[target_slot] = new_item
 
@@ -123,6 +123,9 @@ def try_auto_equip(state: dict, new_item: Equipment) -> bool:
                     state["inventory"][old_item.name] = state["inventory"].get(old_item.name, 0) + 1
         elif old_item is not None:
             state["inventory"][old_item.name] = state["inventory"].get(old_item.name, 0) + 1
+
+        if target_slot == "body":
+            _recalc_max_hp(state)
 
         _recalc_max_hp(state)
         return True

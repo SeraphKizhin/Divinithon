@@ -2,7 +2,7 @@ import random
 import time
 from datetime import datetime
 from core.log_generator import add_log
-from core.models import ActiveMonster
+from core.models import Equipment, ActiveMonster
 from core.monster_engine import roll_rewards, spawn_monster, calculate_monster_exp
 from data.catalog import EQUIPMENTS, EXTRA, MONSTERS, SELL_PRICE_LOOKUP
 from data.world_map import get_neighbors, get_node_name, get_node_zone
@@ -163,7 +163,7 @@ def _handle_city_event(state: dict) -> None:
     choices = ["wandering", "wandering"]
     if state["inventory"]:
         choices.extend(["selling", "selling"])
-    if state["gold"] >= 50:
+    if state["gold"] >= 150:
         choices.append("buying")
     if random.random() < 0.30:
         choices.append("depart")
@@ -180,35 +180,7 @@ def _handle_city_event(state: dict) -> None:
         state["current_action"] = "Haggling at the market..."
 
     elif event == "buying":
-        if EQUIPMENTS:
-            template = random.choice(EQUIPMENTS)
-            bought_eq = roll_equipment_drop(template, state["lvl"])
-            cost = random.randint(25, min(100, state["gold"]))
-            state["gold"] -= cost
-            equipped = try_auto_equip(state, bought_eq)
-            tag = " [Equipped!]" if equipped else ""
-            add_log(
-                state,
-                "city",
-                "buying",
-                item=f"{bought_eq.name} +{bought_eq.bonus}{tag}",
-                gold=cost,
-            )
-            if equipped:
-                _log_important(
-                    state,
-                    f"Acquired and equipped {bought_eq.name} +{bought_eq.bonus}."
-                )
-            state["current_action"] = (
-                f"Equipping {bought_eq.name}..." if equipped else "Inspecting newly bought gear..."
-            )
-        else:
-            item = "Health Potion"
-            cost = random.randint(25, min(100, state["gold"]))
-            state["gold"] -= cost
-            state["inventory"][item] = state["inventory"].get(item, 0) + 1
-            add_log(state, "city", "buying", item=item, gold=cost)
-            state["current_action"] = "Inspecting newly bought gear..."
+        _run_window_shopping(state, is_whisper=False)
 
     elif event == "depart":
         neighbors = get_neighbors(state["current_location"])
@@ -571,19 +543,111 @@ def execute_ai_action(state: dict, packet: ApostlePacket) -> bool:
         return True
 
     if action == "buy_gear":
-        if is_traveling or zone != "city" or state["gold"] < 25 or not EQUIPMENTS:
+        if is_traveling or zone != "city":
             return False
-        matching = [eq for eq in EQUIPMENTS if target and eq.name.lower() == target.lower()]
-        template = matching[0] if matching else random.choice(EQUIPMENTS)
-        bought_eq = roll_equipment_drop(template, state["lvl"])
-        cost = random.randint(25, min(100, state["gold"]))
-        state["gold"] -= cost
-        equipped = try_auto_equip(state, bought_eq)
-        tag = " [Equipped!]" if equipped else ""
-        add_log(state, "city", "buying", item=f"{bought_eq.name} +{bought_eq.bonus}{tag}", gold=cost)
-        if equipped:
-            _log_important(state, f"Acquired and equipped {bought_eq.name} +{bought_eq.bonus}.")
-        state["current_action"] = f"Equipping {bought_eq.name}..." if equipped else "Inspecting newly bought gear..."
+        _run_window_shopping(state, is_whisper=True, target_name=target)
         return True
 
+    return False
+
+def _is_upgrade_for_apostle(state: dict, candidate: Equipment) -> bool:
+    eq = state["equipment"]
+    slot = candidate.slot
+
+    if slot == "offhand":
+        if not can_equip_offhand(eq.get("mainhand"), candidate):
+            return False
+        cur_off = eq.get("offhand")
+        return cur_off is None or candidate.bonus > cur_off.bonus
+
+    cur_item = eq.get(slot)
+    if cur_item is None or candidate.bonus > cur_item.bonus:
+        return True
+
+    # Offhandable mainhand weapon check (e.g., dual-wielding OHS)
+    if slot == "mainhand" and can_equip_offhand(cur_item, candidate):
+        cur_off = eq.get("offhand")
+        return cur_off is None or candidate.bonus > cur_off.bonus
+
+    return False
+
+def _run_window_shopping(
+    state: dict,
+    *,
+    is_whisper: bool = False,
+    target_name: str | None = None,
+) -> bool:
+    if not EQUIPMENTS:
+        return False
+
+    pool = list(EQUIPMENTS)
+    chosen_templates: list[Equipment] = []
+
+    if target_name:
+        matched = [eq for eq in pool if eq.name.lower() == target_name.lower()]
+        if matched:
+            chosen_templates.append(matched[0])
+            pool.remove(matched[0])
+
+    sample_count = min(3 - len(chosen_templates), len(pool))
+    chosen_templates.extend(random.sample(pool, k=sample_count))
+
+    stalls: list[tuple[Equipment, int, bool, bool]] = []
+    for tmpl in chosen_templates:
+        rolled = roll_equipment_drop(tmpl, state["lvl"])
+        cost = 150 * rolled.bonus
+        is_upg = _is_upgrade_for_apostle(state, rolled)
+        is_targeted = bool(target_name and rolled.name.lower() == target_name.lower())
+        stalls.append((rolled, cost, is_upg, is_targeted))
+
+    display_str = ", ".join(
+        f"{eq.name} +{eq.bonus} ({cost}g{' ★' if upg else ''})"
+        for eq, cost, upg, _ in stalls
+    )
+    _log_raw(
+        state,
+        f"{state['apostle']} window-shops in {get_node_name(state['current_location'])}: {display_str}.",
+    )
+
+    sorted_stalls = sorted(stalls, key=lambda x: (x[2], x[3], x[0].bonus), reverse=True)
+
+    for eq, cost, is_upg, is_targeted in sorted_stalls:
+        if state["gold"] < cost:
+            continue
+
+        if is_whisper:
+            buy_chance = 1.0 if (is_upg or is_targeted) else 0.35
+        else:
+            buy_chance = 0.75 if is_upg else 0.15
+
+        if random.random() < buy_chance:
+            state["gold"] -= cost
+            equipped = try_auto_equip(state, eq, force=not is_upg)
+            tag = " [Equipped!]" if equipped else ""
+            log_event = "buying" if is_upg else "buying_weaker"
+            add_log(
+                state,
+                "city",
+                log_event,
+                item=f"{eq.name} +{eq.bonus}{tag}",
+                gold=cost,
+            )
+            if equipped and is_upg:
+                _log_important(
+                    state,
+                    f"Bought and equipped {eq.name} +{eq.bonus} ({cost}g).",
+                )
+            state["current_action"] = (
+                f"Showing off {eq.name}..." if (equipped and not is_upg)
+                else f"Equipping {eq.name}..." if equipped
+                else "Inspecting newly bought gear..."
+            )
+            return True
+
+    cheapest = min(cost for _, cost, _, _ in stalls)
+    if state["gold"] < cheapest:
+        _log_raw(state, f"{state['apostle']} sighs at the price tags and keeps walking (need at least {cheapest}g).")
+    else:
+        _log_raw(state, f"{state['apostle']} decides nothing on the rack is worth the gold today.")
+    state["current_action"] = f"Window-shopping in {get_node_name(state['current_location'])}..."
     return False

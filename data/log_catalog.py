@@ -29,6 +29,13 @@ CITY_LOGS: dict[str, list[str]] = {
         "Quest '{quest}' complete! {apostle} poses heroically while pocketing {gold} Gold.",
         "Wrapped up '{quest}' in {location}. Earned {gold} Gold—not bad for a day's work.",
     ],
+    "buying_weaker": [
+        "{apostle} ignored {god}'s better judgment and blew {gold}g on {item} purely for the aesthetic.",
+        "Against all tactical logic, {apostle} spent {gold}g on {item} in {location} because 'it looked cool.'",
+        "{apostle} bought a weaker {item} for {gold}g, claiming stats are temporary but drip is eternal.",
+        "{god} watched in silence as {apostle} wasted {gold}g on {item} just because the hilt was shiny.",
+        "{apostle} impulsively bought {item} for {gold}g in {location}, insisting it has 'good vibes.'",
+    ],
 }
 
 IDLE_CHATTER: list[str] = [
