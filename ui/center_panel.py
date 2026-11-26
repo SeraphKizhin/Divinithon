@@ -14,9 +14,9 @@ def _parse_log_line(line: str) -> tuple[str, str]:
         return match.group(1), match.group(2)
     return "--:--", line.strip()
 
-@st.dialog("Omniscient Legacy", width="large")
+
+@st.dialog("Akashic Records", width="large")
 def show_important_logs(state: dict) -> None:
-    """Modal dialog listing all important log entries."""
     entries = state.get("important_logbook") or []
     if not entries:
         st.caption("Nothing worthy of legend yet. Go do something reckless.")
@@ -108,48 +108,40 @@ def render_center_column(state: dict) -> None:
     logs_html = "".join(log_items)
     godpower = max(0, min(100, int(state["godpower"])))
 
-    st.markdown('<div class="div-card div-logbook-card">', unsafe_allow_html=True)
-
-    title_col, btn_col = st.columns([5, 1], vertical_alignment="center")
-    with title_col:
-        st.markdown(
-            '<div class="div-logbook-title">Logbook</div>',
-            unsafe_allow_html=True,
-        )
-    with btn_col:
+    with st.container(key="logbook_card_box"):
         if st.button(
             "Important",
-            use_container_width=True,
             key="open_important_logs_btn",
             help="Show only major events: level ups, boss kills, quest completions, deaths.",
         ):
             show_important_logs(state)
 
-    st.markdown(
-        f"""
-        <div class="div-log-box" style="border-radius:0; margin-top:0;">
-          {logs_html}
-        </div>
-        <div class="div-card-header" style="border-top:1px solid #e0e0e0;">Power</div>
-        <div class="div-card-body" style="padding-bottom:6px;">
-          <div style="display:flex; align-items:center; gap:12px;">
-            <span style="font-size:0.9rem; color:#333333; white-space:nowrap;">Godpower</span>
-            <div style="flex:1;">
-              <div class="div-bar-track" style="margin:0;">
-                <div class="div-bar-fill"
-                     style="width:{godpower}%; background-color:#0044b3;"></div>
+        st.markdown(
+            f"""
+            <div class="div-card" style="margin-bottom: 0;">
+              <div class="div-card-header" style="height:40px; box-sizing:border-box; display:flex; align-items:center; justify-content:center;">Logbook</div>
+              <div class="div-log-box">
+                {logs_html}
+              </div>
+              <div class="div-card-header" style="border-top: 1px solid #e0e0e0;">Power</div>
+              <div class="div-card-body" style="padding-bottom: 6px;">
+                <div style="display:flex; align-items:center; gap:12px;">
+                  <span style="font-size:0.9rem; color:#333333; white-space:nowrap;">Godpower</span>
+                  <div style="flex:1;">
+                    <div class="div-bar-track" style="margin:0;">
+                      <div class="div-bar-fill"
+                           style="width:{godpower}%; background-color:#0044b3;"></div>
+                    </div>
+                  </div>
+                  <span style="font-size:0.9rem; color:#333333; min-width:36px; text-align:right;">
+                    {godpower}%
+                  </span>
+                </div>
               </div>
             </div>
-            <span style="font-size:0.9rem; color:#333333; min-width:36px; text-align:right;">
-              {godpower}%
-            </span>
-          </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    st.markdown("</div>", unsafe_allow_html=True)
+            """,
+            unsafe_allow_html=True,
+        )
 
     input_col, btn_col2 = st.columns([5, 1])
     with input_col:
