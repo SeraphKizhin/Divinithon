@@ -59,7 +59,7 @@ def create_initial_state(
             f"[00:00] {apostle} awakens under the gaze of {god_name}."
         ],
 
-        "godpower": 100,
+        "godpower": 40,
 
         "map_nodes": ["NF", "WW", "OE", "MF"],
         "current_location": "NF",

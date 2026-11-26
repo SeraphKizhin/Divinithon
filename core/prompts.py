@@ -281,8 +281,8 @@ def _describe_valid_targets(state: dict[str, Any]) -> str:
     return "\n".join(
         [
             f"- Enemy (for attack/flee): {enemy.name if enemy is not None else NO_TARGET}",
-            f"- Places (for travel): {', '.join(places) if places else NO_TARGET}",
-            f"- Items you carry (for use_item/sell_items): {', '.join(items) if items else NO_TARGET}",
+            f"- Places (for go_to): {', '.join(places) if places else NO_TARGET}",
+            f"- Items you carry (for use_item/equip/sell_items): {', '.join(items) if items else NO_TARGET}",
             f"- City market (for sell_items/buy_gear): {'available' if in_city else 'not here'}",
         ]
     )

@@ -7,11 +7,15 @@ from core.monster_engine import roll_rewards, spawn_monster, calculate_monster_e
 from data.catalog import EQUIPMENTS, EXTRA, MONSTERS, SELL_PRICE_LOOKUP
 from data.world_map import get_neighbors, get_node_name, get_node_zone
 from core.equipment_rules import (
+    _recalc_max_hp,
+    can_equip_offhand,
     get_equipment_stats,
     roll_equipment_drop,
     try_auto_equip,
 )
 from data.quest_catalog import roll_new_quest
+from core.action_validator import VALIDATED_ACTIONS, validate_action
+from core.prompts import ApostlePacket
 
 TIER_REWARDS = {
     "normal": {"exp": 25, "quest": 20, "base_atk": 4},
@@ -19,6 +23,8 @@ TIER_REWARDS = {
     "boss": {"exp": 150, "quest": 50, "base_atk": 13},
 }
 IMPORTANT_MARKER = "★"
+
+_EQUIPMENT_BY_NAME = {eq.name.lower(): eq for eq in EQUIPMENTS}
 
 def _log_raw(state: dict, message: str, max_entries: int = 50) -> None:
     timestamp = datetime.now().strftime("%H:%M")
@@ -76,6 +82,8 @@ def _resolve_combat_tick(state: dict) -> None:
         tier_cfg = TIER_REWARDS[enemy.tier]
         q_data = state.get("quest_data", {"type": "standard"})
         q_type = q_data.get("type", "standard")
+        gp_gain = {"normal": 3, "mini_boss": 10, "boss": 25}.get(enemy.tier, 3)
+        state["godpower"] = min(100, state["godpower"] + gp_gain)
 
         if q_type == "boss_hunt":
             if enemy.name == q_data.get("target_boss"):
@@ -108,6 +116,7 @@ def _resolve_combat_tick(state: dict) -> None:
         state["current_action"] = f"Catching a breath in {get_node_name(state['current_location'])}..."
         if q_type == "boss_hunt" and state["quest_progress"] >= 100:
             _complete_quest(state, "wild")
+            state["godpower"] = min(100, state["godpower"] + (20 if q_type == "boss_hunt" else 12))
         return
 
     raw_dmg = _get_enemy_attack(enemy)
@@ -283,22 +292,22 @@ def _handle_wild_event(state: dict) -> None:
 
 
 def run_game_tick(state: dict) -> None:
-    state["godpower"] = min(100, state["godpower"] + 2)
-
     if state.get("active_enemy") is not None:
         _resolve_combat_tick(state)
         return
 
     is_traveling = state.get("travel") is not None
     zone = get_node_zone(state["current_location"])
-    q_data = state.get("quest_data", {})
+    q_data = state.get("quest_data") or {}
     if zone != "city" and q_data.get("type") == "absurd":
         elapsed = time.time() - q_data.get("start_time", time.time())
         duration = max(1, q_data.get("duration_sec", 120))
         state["quest_progress"] = min(100, int((elapsed / duration) * 100))
 
-    if not is_traveling and zone == "city" and state["cur_hp"] < state["max_hp"]:
-        state["cur_hp"] = min(state["max_hp"], state["cur_hp"] + 10)
+    if not is_traveling and zone == "city":
+        state["godpower"] = min(100, state["godpower"] + 1)
+        if state["cur_hp"] < state["max_hp"]:
+            state["cur_hp"] = min(state["max_hp"], state["cur_hp"] + 10)
 
     state["action_progress"] += 50
 
@@ -308,6 +317,7 @@ def run_game_tick(state: dict) -> None:
         return
 
     state["action_progress"] = 0
+    state["godpower"] = min(100, state["godpower"] + 1)
     if is_traveling:
         _handle_road_event(state)
     elif zone == "city":
@@ -433,3 +443,147 @@ def _assign_new_quest(state: dict, zone: str) -> None:
     add_log(state, zone, "quest_found", quest=state["quest"])
     _log_important(state, f"New quest accepted: '{state['quest']}'.")
     state["current_action"] = "Preparing for the new quest..."
+
+def _consume_inventory_item(state: dict, item_name: str, qty: int = 1) -> None:
+    inv = state["inventory"]
+    remaining = inv.get(item_name, 0) - qty
+    if remaining <= 0:
+        inv.pop(item_name, None)
+    else:
+        inv[item_name] = remaining
+
+def execute_ai_action(state: dict, packet: ApostlePacket) -> bool:
+    action = packet.action
+    target = packet.target if packet.target != "none" else None
+
+    if action == "idle":
+        return False
+
+    if action in VALIDATED_ACTIONS:
+        param = {"location": target} if action == "go_to" else {"item": target}
+        verdict = validate_action(state, action, param)
+        if not verdict.ok:
+            _log_raw(state, f"({state['apostle']} hesitated: {verdict.reason})")
+            return False
+
+        if action == "go_to" and verdict.destination:
+            _start_travel(state, verdict.destination)
+            return True
+
+        if action == "equip" and verdict.item and verdict.slot:
+            template = _EQUIPMENT_BY_NAME.get(verdict.item.lower())
+            if template is None:
+                return False
+            rolled = roll_equipment_drop(template, state["lvl"])
+            eq = state["equipment"]
+            old_item = eq.get(verdict.slot)
+
+            _consume_inventory_item(state, verdict.item, 1)
+            eq[verdict.slot] = rolled
+
+            if old_item is not None:
+                state["inventory"][old_item.name] = state["inventory"].get(old_item.name, 0) + 1
+
+            if verdict.slot == "mainhand" and eq.get("offhand") is not None:
+                if not can_equip_offhand(rolled, eq["offhand"]):
+                    old_off = eq["offhand"]
+                    eq["offhand"] = None
+                    state["inventory"][old_off.name] = state["inventory"].get(old_off.name, 0) + 1
+
+            _recalc_max_hp(state)
+            msg = f"{state['apostle']} equipped {rolled.name} +{rolled.bonus} ({verdict.slot})."
+            _log_raw(state, msg)
+            _log_important(state, msg)
+            state["current_action"] = f"Equipped {rolled.name}!"
+            return True
+
+        if action == "use_item" and verdict.item:
+            _consume_inventory_item(state, verdict.item, 1)
+            if "apple" in verdict.item.lower() or "potion" in verdict.item.lower():
+                heal = max(15, round(state["max_hp"] * 0.35))
+            else:
+                heal = max(8, round(state["max_hp"] * 0.15))
+            old_hp = state["cur_hp"]
+            state["cur_hp"] = min(state["max_hp"], state["cur_hp"] + heal)
+            gained = state["cur_hp"] - old_hp
+            _log_raw(
+                state,
+                f"{state['apostle']} used {verdict.item} and recovered {gained} HP!",
+            )
+            state["current_action"] = f"Used {verdict.item}!"
+            return True
+
+    if action == "attack":
+        if state.get("active_enemy") is None:
+            return False
+        _resolve_combat_tick(state)
+        return True
+
+    if action == "flee":
+        enemy = state.get("active_enemy")
+        if enemy is None:
+            return False
+        if random.random() < 0.70:
+            _log_raw(state, f"{state['apostle']} fled from {enemy.name}!")
+            state["active_enemy"] = None
+            state["action_progress"] = 0
+            state["current_action"] = f"Catching breath in {get_node_name(state['current_location'])}..."
+        else:
+            _log_raw(state, f"{state['apostle']} tried to flee from {enemy.name}, but got cornered!")
+            _resolve_combat_tick(state)
+        return True
+
+    zone = get_node_zone(state["current_location"])
+    is_traveling = state.get("travel") is not None
+
+    if action == "rest":
+        if state.get("active_enemy") is not None:
+            return False
+        heal = max(10, round(state["max_hp"] * 0.25))
+        state["cur_hp"] = min(state["max_hp"], state["cur_hp"] + heal)
+        _log_raw(state, f"{state['apostle']} took a quick breather and recovered {heal} HP.")
+        state["current_action"] = "Resting..."
+        return True
+
+    if action == "explore":
+        if state.get("active_enemy") is not None:
+            return False
+        state["action_progress"] = 0
+        if is_traveling:
+            _handle_road_event(state)
+        elif zone == "city":
+            add_log(state, "city", "wandering")
+            state["current_action"] = f"Exploring {get_node_name(state['current_location'])}..."
+        else:
+            _handle_wild_event(state)
+        return True
+
+    if action == "sell_items":
+        if is_traveling or zone != "city" or not state["inventory"]:
+            return False
+        item_name = target if target in state["inventory"] else random.choice(list(state["inventory"].keys()))
+        qty = state["inventory"].pop(item_name)
+        unit_price = SELL_PRICE_LOOKUP.get(item_name, 10)
+        gold_earned = qty * unit_price
+        state["gold"] += gold_earned
+        add_log(state, "city", "selling", item=item_name, qty=qty, gold=gold_earned)
+        state["current_action"] = "Haggling at the market..."
+        return True
+
+    if action == "buy_gear":
+        if is_traveling or zone != "city" or state["gold"] < 25 or not EQUIPMENTS:
+            return False
+        matching = [eq for eq in EQUIPMENTS if target and eq.name.lower() == target.lower()]
+        template = matching[0] if matching else random.choice(EQUIPMENTS)
+        bought_eq = roll_equipment_drop(template, state["lvl"])
+        cost = random.randint(25, min(100, state["gold"]))
+        state["gold"] -= cost
+        equipped = try_auto_equip(state, bought_eq)
+        tag = " [Equipped!]" if equipped else ""
+        add_log(state, "city", "buying", item=f"{bought_eq.name} +{bought_eq.bonus}{tag}", gold=cost)
+        if equipped:
+            _log_important(state, f"Acquired and equipped {bought_eq.name} +{bought_eq.bonus}.")
+        state["current_action"] = f"Equipping {bought_eq.name}..." if equipped else "Inspecting newly bought gear..."
+        return True
+
+    return False

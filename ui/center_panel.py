@@ -4,8 +4,10 @@ import re
 from datetime import datetime
 from ui.styles import progress_bar_html, render_html
 from core.llm_client import ask_apostle
+from core.game_engine import execute_ai_action
 
 IMPORTANT_MARKER = "★"
+WHISPER_COST = 15
 
 def _parse_log_line(line: str) -> tuple[str, str]:
     """Splits '[02:32] Message' or '02:32 Message' into (timestamp, message)."""
@@ -145,24 +147,35 @@ def render_center_column(state: dict) -> None:
             unsafe_allow_html=True,
         )
 
+    can_whisper = godpower >= WHISPER_COST
     input_col, btn_col2 = st.columns([5, 1])
     with input_col:
         whisper_input = st.text_area(
             "Divine Whisper",
             height=68,
             label_visibility="collapsed",
-            placeholder="Whisper a divine command to your Apostle...",
+            placeholder=(
+                f"Whisper a divine command ({WHISPER_COST} Godpower)..."
+                if can_whisper
+                else f"Not enough Godpower ({godpower}/{WHISPER_COST})..."
+            ),
+            disabled=not can_whisper,
             key="divine_whisper_input",
         )
     with btn_col2:
-        if st.button("Send", use_container_width=True):
+        if st.button(
+            f"Send (-{WHISPER_COST})",
+            use_container_width=True,
+            disabled=not can_whisper,
+        ):
             clean_whisper = whisper_input.strip()
-            if clean_whisper:
+            if clean_whisper and state["godpower"] >= WHISPER_COST:
                 now_str = datetime.now().strftime("%H:%M")
+                state["godpower"] = max(0, state["godpower"] - WHISPER_COST)
                 state["logbook"].append(f"[{now_str}] [Divine Whisper] {clean_whisper}")
-                state["godpower"] = max(0, state["godpower"] - 10)
                 packet = ask_apostle(state, clean_whisper)
                 if packet.dialogue:
                     apostle_name = state.get("apostle", "Apostle")
                     state["logbook"].append(f"[{now_str}] {apostle_name}: {packet.dialogue}")
+                execute_ai_action(state, packet)
                 st.rerun()
