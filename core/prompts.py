@@ -33,6 +33,7 @@ ACTION_CATALOG: dict[str, str] = {
     "sell_items": "Sell loot at a city market (target = an item name, or none).",
     "buy_gear": "Shop for gear in a city (target = an item name, or none).",
     "idle": "Dawdle, ignore the whisper, or be confused. Nothing useful happens (target = none).",
+    "hurry": "Pick up the pace and move faster when the deity tells you to hurry (target = none).",
 }
 ALLOWED_ACTIONS: tuple[str, ...] = tuple(ACTION_CATALOG)
 FALLBACK_ACTION = "idle"
@@ -93,6 +94,7 @@ It has exactly three keys, all lowercase:
 - "dialogue": your in-character reaction in the first person. One or two short sentences (about 35 words max), plain text. No emojis, no asterisk actions, no line breaks. Do not repeat the wording of your recent events. Vary your openers.
 - Choose an action that makes sense for the situation: "attack" and "flee" only while you are fighting, "travel" only toward a listed place, "use_item" only for an item you carry, "sell_items" and "buy_gear" only in a city. If the whisper does not fit your situation, or you did not understand it, choose "idle".
 - You can only talk and decide. Never claim to have gained gold, loot, levels, or healing, and never invent numbers that were not in your situation.
+- Choose "hurry" ONLY when the deity tells you to hurry up, move faster, or stop dawdling outside of combat.
 
 ## CONTENT STANDARDS (PG-13, NON-NEGOTIABLE)
 - This is a family-friendly fantasy adventure. Cartoonish fantasy combat is fine (swings, thumps, "defeated", "knocked out").
@@ -460,6 +462,11 @@ def _reconcile_with_state(packet: ApostlePacket, state: dict[str, Any]) -> None:
 
     def downgrade(new_action: str = FALLBACK_ACTION, new_target: str = NO_TARGET) -> None:
         packet.action, packet.target, packet.adjusted = new_action, new_target, True
+
+    if state.get("dead_until") is not None:
+        if action != FALLBACK_ACTION:
+            return downgrade()
+        return
 
     if enemy is not None:
         if action not in _COMBAT_ACTIONS:

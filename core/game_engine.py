@@ -26,6 +26,15 @@ IMPORTANT_MARKER = "★"
 
 _EQUIPMENT_BY_NAME = {eq.name.lower(): eq for eq in EQUIPMENTS}
 AUTO_EVENT_INTERVAL_SEC = 30.0
+HURRY_ACTIVE_INTERVAL_SEC = 15.0
+HURRY_IDLE_INTERVAL_SEC = 8.0 
+HURRY_CHARGES = 3
+ALREADY_HURRYING_REMARKS = [
+    "I'm already moving as fast as my boots allow, Lord! Any faster and I'll trip over my own sword!",
+    "Easy, Almighty! My legs are already a blur—I can't physically hurry any harder!",
+    "I'm practically sprinting here! Give my poor ankles a second to catch up!",
+    "Faster?! If I push this pace any more, I'll arrive in pieces!",
+]
 RESURRECTION_DURATION_SEC = 60.0
 RESURRECTION_GP_COST = 20
 
@@ -278,7 +287,7 @@ def run_game_tick(state: dict, *, force_step: bool = False) -> None:
         return
     if state.get("active_enemy") is not None:
         _resolve_combat_tick(state)
-        state["next_auto_tick_at"] = now + AUTO_EVENT_INTERVAL_SEC
+        state["next_auto_tick_at"] = now + _get_current_auto_interval(state, is_idle=False)
         return
 
     is_traveling = state.get("travel") is not None
@@ -290,13 +299,16 @@ def run_game_tick(state: dict, *, force_step: bool = False) -> None:
         state["quest_progress"] = min(100, int((elapsed / duration) * 100))
 
     next_tick_at = state.get("next_auto_tick_at", 0.0)
+    cycle_duration = state.get("current_tick_duration", AUTO_EVENT_INTERVAL_SEC)
     if not force_step and now < next_tick_at:
         remaining = next_tick_at - now
-        elapsed_in_cycle = max(0.0, AUTO_EVENT_INTERVAL_SEC - remaining)
-        state["action_progress"] = min(99, int((elapsed_in_cycle / AUTO_EVENT_INTERVAL_SEC) * 100))
+        elapsed_in_cycle = max(0.0, cycle_duration - remaining)
+        state["action_progress"] = min(99, int((elapsed_in_cycle / max(1.0, cycle_duration)) * 100))
         return
+    
+    if state.get("hurry_actions_left", 0) > 0:
+        state["hurry_actions_left"] -= 1
 
-    state["next_auto_tick_at"] = now + AUTO_EVENT_INTERVAL_SEC
     state["action_progress"] = 0
     state["godpower"] = min(100, state["godpower"] + 1)
 
@@ -307,14 +319,23 @@ def run_game_tick(state: dict, *, force_step: bool = False) -> None:
 
     if not is_traveling and random.random() < 0.35:
         add_log(state, "idle")
+        state["last_log_was_idle"] = True
+        next_dur = _get_current_auto_interval(state, is_idle=True)
+        state["current_tick_duration"] = next_dur
+        state["next_auto_tick_at"] = now + next_dur
         return
 
+    state["last_log_was_idle"] = False
     if is_traveling:
         _handle_road_event(state)
     elif zone == "city":
         _handle_city_event(state)
     else:
         _handle_wild_event(state)
+
+    next_dur = _get_current_auto_interval(state, is_idle=False)
+    state["current_tick_duration"] = next_dur
+    state["next_auto_tick_at"] = now + next_dur
 
 def _start_travel(state: dict, destination: str, steps: int = 3) -> None:
     """Puts the Apostle onto the road between current_location and destination."""
@@ -444,12 +465,12 @@ def _consume_inventory_item(state: dict, item_name: str, qty: int = 1) -> None:
         inv[item_name] = remaining
 
 def execute_ai_action(state: dict, packet: ApostlePacket) -> bool:
+    action = packet.action
+    target = packet.target if packet.target != "none" else None
     if state.get("dead_until") is not None:
         if action != "idle":
             _log_raw(state, f"({state['apostle']} is currently dead and awaiting resurrection!)")
         return False
-    action = packet.action
-    target = packet.target if packet.target != "none" else None
 
     if action == "idle":
         return False
@@ -463,7 +484,9 @@ def execute_ai_action(state: dict, packet: ApostlePacket) -> bool:
 
         if action == "go_to" and verdict.destination:
             _start_travel(state, verdict.destination)
-            state["next_auto_tick_at"] = time.time() + AUTO_EVENT_INTERVAL_SEC
+            next_dur = _get_current_auto_interval(state, is_idle=False)
+            state["current_tick_duration"] = next_dur
+            state["next_auto_tick_at"] = time.time() + next_dur
             state["action_progress"] = 0
             return True
 
@@ -492,7 +515,9 @@ def execute_ai_action(state: dict, packet: ApostlePacket) -> bool:
             _log_raw(state, msg)
             _log_important(state, msg)
             state["current_action"] = f"Equipped {rolled.name}!"
-            state["next_auto_tick_at"] = time.time() + AUTO_EVENT_INTERVAL_SEC
+            next_dur = _get_current_auto_interval(state, is_idle=False)
+            state["current_tick_duration"] = next_dur
+            state["next_auto_tick_at"] = time.time() + next_dur
             state["action_progress"] = 0
             return True
 
@@ -510,7 +535,9 @@ def execute_ai_action(state: dict, packet: ApostlePacket) -> bool:
                 f"{state['apostle']} used {verdict.item} and recovered {gained} HP!",
             )
             state["current_action"] = f"Used {verdict.item}!"
-            state["next_auto_tick_at"] = time.time() + AUTO_EVENT_INTERVAL_SEC
+            next_dur = _get_current_auto_interval(state, is_idle=False)
+            state["current_tick_duration"] = next_dur
+            state["next_auto_tick_at"] = time.time() + next_dur
             state["action_progress"] = 0
             return True
 
@@ -518,7 +545,9 @@ def execute_ai_action(state: dict, packet: ApostlePacket) -> bool:
         if state.get("active_enemy") is None:
             return False
         _resolve_combat_tick(state)
-        state["next_auto_tick_at"] = time.time() + AUTO_EVENT_INTERVAL_SEC
+        next_dur = _get_current_auto_interval(state, is_idle=False)
+        state["current_tick_duration"] = next_dur
+        state["next_auto_tick_at"] = time.time() + next_dur
         state["action_progress"] = 0
         return True
 
@@ -534,7 +563,9 @@ def execute_ai_action(state: dict, packet: ApostlePacket) -> bool:
         else:
             _log_raw(state, f"{state['apostle']} tried to flee from {enemy.name}, but got cornered!")
             _resolve_combat_tick(state)
-        state["next_auto_tick_at"] = time.time() + AUTO_EVENT_INTERVAL_SEC
+        next_dur = _get_current_auto_interval(state, is_idle=False)
+        state["current_tick_duration"] = next_dur
+        state["next_auto_tick_at"] = time.time() + next_dur
         state["action_progress"] = 0
         return True
 
@@ -548,7 +579,9 @@ def execute_ai_action(state: dict, packet: ApostlePacket) -> bool:
         state["cur_hp"] = min(state["max_hp"], state["cur_hp"] + heal)
         _log_raw(state, f"{state['apostle']} took a quick breather and recovered {heal} HP.")
         state["current_action"] = "Resting..."
-        state["next_auto_tick_at"] = time.time() + AUTO_EVENT_INTERVAL_SEC
+        next_dur = _get_current_auto_interval(state, is_idle=False)
+        state["current_tick_duration"] = next_dur
+        state["next_auto_tick_at"] = time.time() + next_dur
         state["action_progress"] = 0
         return True
 
@@ -563,7 +596,9 @@ def execute_ai_action(state: dict, packet: ApostlePacket) -> bool:
             state["current_action"] = f"Exploring {get_node_name(state['current_location'])}..."
         else:
             _handle_wild_event(state)
-        state["next_auto_tick_at"] = time.time() + AUTO_EVENT_INTERVAL_SEC
+        next_dur = _get_current_auto_interval(state, is_idle=False)
+        state["current_tick_duration"] = next_dur
+        state["next_auto_tick_at"] = time.time() + next_dur
         state["action_progress"] = 0
         return True
 
@@ -577,7 +612,9 @@ def execute_ai_action(state: dict, packet: ApostlePacket) -> bool:
         state["gold"] += gold_earned
         add_log(state, "city", "selling", item=item_name, qty=qty, gold=gold_earned)
         state["current_action"] = "Haggling at the market..."
-        state["next_auto_tick_at"] = time.time() + AUTO_EVENT_INTERVAL_SEC
+        next_dur = _get_current_auto_interval(state, is_idle=False)
+        state["current_tick_duration"] = next_dur
+        state["next_auto_tick_at"] = time.time() + next_dur
         state["action_progress"] = 0
         return True
 
@@ -585,8 +622,34 @@ def execute_ai_action(state: dict, packet: ApostlePacket) -> bool:
         if is_traveling or zone != "city":
             return False
         _run_window_shopping(state, is_whisper=True, target_name=target)
-        state["next_auto_tick_at"] = time.time() + AUTO_EVENT_INTERVAL_SEC
+        next_dur = _get_current_auto_interval(state, is_idle=False)
+        state["current_tick_duration"] = next_dur
+        state["next_auto_tick_at"] = time.time() + next_dur
         state["action_progress"] = 0
+        return True
+
+    if action == "hurry":
+        if state.get("active_enemy") is not None:
+            return False
+
+        if state.get("hurry_actions_left", 0) > 0:
+            remark = random.choice(ALREADY_HURRYING_REMARKS)
+            _log_raw(state, f"{state['apostle']}: {remark}")
+            return False
+
+        state["hurry_actions_left"] = HURRY_CHARGES
+        is_currently_idle = bool(state.get("last_log_was_idle", False))
+        new_dur = HURRY_IDLE_INTERVAL_SEC if is_currently_idle else HURRY_ACTIVE_INTERVAL_SEC
+
+        now = time.time()
+        state["current_tick_duration"] = new_dur
+        state["next_auto_tick_at"] = now + new_dur
+        state["action_progress"] = 0
+        state["current_action"] = f"Hurrying! ({HURRY_CHARGES} fast actions left)"
+        _log_raw(
+            state,
+            f"{state['apostle']} picks up the pace! (Next {HURRY_CHARGES} actions at {int(new_dur)}s intervals)",
+        )
         return True
 
     return False
@@ -731,3 +794,8 @@ def _handle_resurrection_tick(state: dict, now: float, *, force_step: bool = Fal
     )
     _log_important(state, res_msg)
     _log_raw(state, res_msg)
+
+def _get_current_auto_interval(state: dict, *, is_idle: bool = False) -> float:
+    if state.get("hurry_actions_left", 0) <= 0:
+        return AUTO_EVENT_INTERVAL_SEC
+    return HURRY_IDLE_INTERVAL_SEC if is_idle else HURRY_ACTIVE_INTERVAL_SEC

@@ -9,6 +9,8 @@ from core.game_engine import execute_ai_action
 IMPORTANT_MARKER = "★"
 WHISPER_COST = 15
 
+HURRY_KEYWORDS = ("hurry", "faster", "quick", "chop chop", "speed up", "move it")
+
 def _parse_log_line(line: str) -> tuple[str, str]:
     """Splits '[02:32] Message' or '02:32 Message' into (timestamp, message)."""
     match = re.match(r"^\[?(\d{2}:\d{2})\]?\s*(.*)$", line.strip())
@@ -174,6 +176,14 @@ def render_center_column(state: dict) -> None:
                 state["godpower"] = max(0, state["godpower"] - WHISPER_COST)
                 state["logbook"].append(f"[{now_str}] [Divine Whisper] {clean_whisper}")
                 packet = ask_apostle(state, clean_whisper)
+                if (
+                    packet.action == "idle"
+                    and state.get("active_enemy") is None
+                    and state.get("dead_until") is None
+                    and any(kw in clean_whisper.lower() for kw in HURRY_KEYWORDS)
+                ):
+                    packet.action = "hurry"
+                    packet.target = "none"
                 if packet.dialogue:
                     apostle_name = state.get("apostle", "Apostle")
                     state["logbook"].append(f"[{now_str}] {apostle_name}: {packet.dialogue}")
