@@ -98,7 +98,7 @@ def _build_map_svg(current_location: str, travel: Optional[dict] = None) -> str:
         else:
             h_pos = "left: 50%; transform: translateX(-50%);"
 
-        v_pos = "top: calc(100% + 6px);" if info["y"] < 65 else "bottom: calc(100% + 6px);"
+        v_pos = "top: calc(100% + 6px);" if info["y"] < 85 else "bottom: calc(100% + 6px);"
 
         hotspots_html.append(
             f'<div class="div-map-hotspot" title="{tooltip_text}" '

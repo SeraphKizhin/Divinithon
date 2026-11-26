@@ -17,7 +17,7 @@ def render_left_column(state: dict) -> None:
     quest_pct = state["quest_progress"]
 
     apostle_name = html.escape(str(state["apostle"]))
-    quest_text = html.escape(str(state["quest"]))
+    quest_text = html.escape(state["quest"]) if state.get("quest") else "No active quest"
 
     apostle_html = f"""
     <div class="div-card">

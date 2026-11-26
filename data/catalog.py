@@ -298,6 +298,7 @@ MONSTERS = [
     Monster("Boss Colon", tier="mini_boss", hp_mult=1.10, dmg_mult=0.90, sellable_drops=_drops("Boss Colon Skin", "Colon Leaf", "Colon Skin", "Apple", "Plant Skin", "Young Branch")),
     Monster("Crimsosch", tier="mini_boss", hp_mult=0.85, dmg_mult=1.15, sellable_drops=_drops("Thick Frog Skin", "Athema Stone", "Twinkle Stone")),
     Monster("Don Yeti", tier="mini_boss", hp_mult=0.80, dmg_mult=1.20, sellable_drops=_drops("Cracked Big Axe", "Cold Wood Stick", "Thick Fur")),
+    Monster("Tortuga", tier="mini_boss", hp_mult=1.20, dmg_mult=0.80, sellable_drops=_drops("Lizard Skin", "Soft Reptile Skin")),
     Monster("Golden Coryn", tier="mini_boss", hp_mult=1.20, dmg_mult=0.80, sellable_drops=_drops("Golden Apple", "Apple", "Plant Skin", "Young Branch")),
     Monster("Golden Potum", tier="mini_boss", hp_mult=1.20, dmg_mult=0.80, sellable_drops=_drops("Potum Gold Coin", "Potum Silver Coin", "Potum Bronze Coin", "Potum Nail")),
     Monster("King Potum", tier="mini_boss", hp_mult=1.15, dmg_mult=0.85, sellable_drops=_drops("Bead Fragment", "Potum Crown", "Potum Nail")),

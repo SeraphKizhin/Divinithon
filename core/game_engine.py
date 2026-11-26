@@ -61,7 +61,6 @@ def _grant_exp(state: dict, amount: int) -> None:
             f"LEVEL UP! {state['apostle']} reached Level {state['lvl']} "
             f"(Max HP: {state['max_hp']})!"
         )
-        _log_raw(state,Level_up_msg)
         _log_important(state,Level_up_msg)
 
 
@@ -98,7 +97,7 @@ def _resolve_combat_tick(state: dict) -> None:
 
         loot_text = f" Looted: {', '.join(loot_names)}." if loot_names else ""
         exp_gained = calculate_monster_exp(enemy.tier, enemy.level)
-        kill_msg = (f"{apostle} dealt {dmg_dealt} dmg and defeated {enemy.name}!" f"(+{exp_gained} EXP){loot_text}")
+        kill_msg = f"{apostle} dealt {dmg_dealt} dmg and defeated {enemy.name}! (+{exp_gained} EXP){loot_text}"
         if enemy.tier in ("mini_boss", "boss"):
             _log_important(state, kill_msg)
         _log_raw(state,kill_msg)
@@ -139,6 +138,9 @@ def _resolve_combat_tick(state: dict) -> None:
 
 
 def _handle_city_event(state: dict) -> None:
+    if state.get("quest") is None:
+        _assign_new_quest(state, "city")
+        return
     if state["quest_progress"] >= 100:
         _complete_quest(state, "city")
         return
@@ -209,6 +211,9 @@ def _handle_city_event(state: dict) -> None:
 
 
 def _handle_wild_event(state: dict) -> None:
+    if state.get("quest") is None:
+        _assign_new_quest(state, "wild")
+        return
     q_data = state.get("quest_data", {"type": "standard"})
 
     if q_data.get("type") == "absurd":
@@ -419,3 +424,12 @@ def _complete_quest(state: dict, zone: str) -> None:
     add_log(state, zone, "quest_found", quest=state["quest"])
     _log_important(state, f"New quest accepted: '{state['quest']}'.")
     state["current_action"] = "Preparing for the next quest..."
+
+def _assign_new_quest(state: dict, zone: str) -> None:
+    new_q = roll_new_quest(MONSTERS)
+    state["quest"] = new_q["title"]
+    state["quest_data"] = new_q
+    state["quest_progress"] = 0
+    add_log(state, zone, "quest_found", quest=state["quest"])
+    _log_important(state, f"New quest accepted: '{state['quest']}'.")
+    state["current_action"] = "Preparing for the new quest..."

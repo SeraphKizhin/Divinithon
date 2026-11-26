@@ -1,8 +1,8 @@
 import random
 from dataclasses import replace
 from core.models import Equipment
-from data.catalog import EQUIPMENTS, MONSTERS
-from data.quest_catalog import roll_new_quest
+from data.catalog import EQUIPMENTS
+from core.equipment_rules import get_equipment_stats
 
 def _create_starter_equipment() -> dict[str, Equipment | None]:
     mainhand_pool = [eq for eq in EQUIPMENTS if eq.slot == "mainhand"]
@@ -29,8 +29,7 @@ def create_initial_state(
     apostle: str = "Seraph",
     ) -> dict:
     starter_eq = _create_starter_equipment()
-    starting_hp = 50 + (starter_eq["body"].bonus if starter_eq["body"] else 0)
-    initial_quest = roll_new_quest(MONSTERS)
+    starting_hp = 50 + get_equipment_stats(starter_eq)["hp"]
     return {
         "god_name": god_name,
         "apostle": apostle,
@@ -41,8 +40,8 @@ def create_initial_state(
         "max_hp": starting_hp,
         "cur_hp": starting_hp,
 
-        "quest": initial_quest["title"],
-        "quest_data": initial_quest,
+        "quest": None,
+        "quest_data": None,
         "quest_progress": 0,
         "gold": 0,
         "monster_defeated": 0,

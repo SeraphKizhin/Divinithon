@@ -7,10 +7,6 @@ from core.llm_client import ask_apostle
 
 IMPORTANT_MARKER = "★"
 
-
-IMPORTANT_MARKER = "★"
-
-
 def _parse_log_line(line: str) -> tuple[str, str]:
     """Splits '[02:32] Message' or '02:32 Message' into (timestamp, message)."""
     match = re.match(r"^\[?(\d{2}:\d{2})\]?\s*(.*)$", line.strip())
@@ -76,6 +72,7 @@ def render_center_column(state: dict) -> None:
         elif enemy.tier == "mini_boss":
             tier_badge = " [Mini-Boss]"
 
+        safe_enemy_name = html.escape(str(enemy.name))
         action_html = f"""
         <div class="div-card">
             <div class="div-card-header">In Combat</div>
@@ -88,6 +85,7 @@ def render_center_column(state: dict) -> None:
         </div>
         """
     else:
+        safe_action = html.escape(str(state["current_action"]))
         action_html = f"""
         <div class="div-card">
             <div class="div-card-header">Current Action</div>
