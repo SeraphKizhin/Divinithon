@@ -1,6 +1,7 @@
 import random
 import time
 from core.models import Monster
+from typing import Optional
 
 STANDARD_QUESTS = [
     "Explore the Whispering Willow",
@@ -52,37 +53,37 @@ ABSURD_QUESTS = [
 ]
 
 
-def roll_new_quest(monsters_catalog: list[Monster]) -> dict:
-    """Rolls a standard, boss_hunt, or absurd quest."""
-    bosses = [m.name for m in monsters_catalog if m.tier == "boss"]
-    quest_types = ["standard", "absurd"]
-    weights = [45, 30]
+def roll_new_quest(monsters_catalog: list[Monster], zone: str = "city") -> dict:
+    if zone == "city":
+        quest_type = random.choices(["standard", "boss_hunt"], weights=[70, 30], k=1)[0]
 
-    if bosses:
-        quest_types.append("boss_hunt")
-        weights.append(25)
+        if quest_type == "boss_hunt":
+            bosses = [m.name for m in monsters_catalog if m.tier == "boss"]
+            if bosses:
+                target_boss = random.choice(bosses)
+                return {
+                    "type": "boss_hunt",
+                    "title": f"Slay {target_boss}",
+                    "target_boss": target_boss,
+                }
 
-    q_type = random.choices(quest_types, weights=weights, k=1)[0]
-
-    if q_type == "boss_hunt":
-        target = random.choice(bosses)
+        title = random.choice(STANDARD_QUESTS) if STANDARD_QUESTS else "Patrol the Border"
         return {
-            "type": "boss_hunt",
-            "title": f"Hunt the Boss: {target}",
-            "target_boss": target,
+            "type": "standard",
+            "title": title,
         }
 
-    if q_type == "absurd":
+    if ABSURD_QUESTS:
         picked = random.choice(ABSURD_QUESTS)
         return {
             "type": "absurd",
             "title": picked["title"],
+            "duration_sec": picked.get("duration_sec", 120),
             "start_time": time.time(),
-            "duration_sec": picked["duration_sec"],
-            "completion_log": picked["completion_log"],
+            "completion_log": picked.get("completion_log", ""),
         }
 
     return {
         "type": "standard",
-        "title": random.choice(STANDARD_QUESTS),
+        "title": "Survive the Wilderness",
     }

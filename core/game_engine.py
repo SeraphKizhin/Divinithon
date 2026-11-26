@@ -399,7 +399,7 @@ def _complete_quest(state: dict, zone: str) -> None:
         if bonus_loot:
             _log_raw(state, f"Quest Bonus Rewards: {', '.join(bonus_loot)}.")
 
-    new_q = roll_new_quest(MONSTERS)
+    new_q = roll_new_quest(MONSTERS, zone)
     state["quest"] = new_q["title"]
     state["quest_data"] = new_q
     state["quest_progress"] = 0
@@ -408,7 +408,7 @@ def _complete_quest(state: dict, zone: str) -> None:
     state["current_action"] = "Preparing for the next quest..."
 
 def _assign_new_quest(state: dict, zone: str) -> None:
-    new_q = roll_new_quest(MONSTERS)
+    new_q = roll_new_quest(MONSTERS, zone)
     state["quest"] = new_q["title"]
     state["quest_data"] = new_q
     state["quest_progress"] = 0
