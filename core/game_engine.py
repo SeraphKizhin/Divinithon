@@ -25,6 +25,7 @@ TIER_REWARDS = {
 IMPORTANT_MARKER = "★"
 
 _EQUIPMENT_BY_NAME = {eq.name.lower(): eq for eq in EQUIPMENTS}
+AUTO_EVENT_INTERVAL_SEC = 30.0
 
 def _log_raw(state: dict, message: str, max_entries: int = 50) -> None:
     timestamp = datetime.now().strftime("%H:%M")
@@ -263,33 +264,41 @@ def _handle_wild_event(state: dict) -> None:
             _start_travel(state, random.choice(neighbors))
 
 
-def run_game_tick(state: dict) -> None:
+def run_game_tick(state: dict, *, force_step: bool = False) -> None:
+    now = time.time()
     if state.get("active_enemy") is not None:
         _resolve_combat_tick(state)
+        state["next_auto_tick_at"] = now + AUTO_EVENT_INTERVAL_SEC
         return
 
     is_traveling = state.get("travel") is not None
     zone = get_node_zone(state["current_location"])
     q_data = state.get("quest_data") or {}
     if zone != "city" and q_data.get("type") == "absurd":
-        elapsed = time.time() - q_data.get("start_time", time.time())
+        elapsed = now - q_data.get("start_time", now)
         duration = max(1, q_data.get("duration_sec", 120))
         state["quest_progress"] = min(100, int((elapsed / duration) * 100))
+
+    next_tick_at = state.get("next_auto_tick_at", 0.0)
+    if not force_step and now < next_tick_at:
+        remaining = next_tick_at - now
+        elapsed_in_cycle = max(0.0, AUTO_EVENT_INTERVAL_SEC - remaining)
+        state["action_progress"] = min(99, int((elapsed_in_cycle / AUTO_EVENT_INTERVAL_SEC) * 100))
+        return
+
+    state["next_auto_tick_at"] = now + AUTO_EVENT_INTERVAL_SEC
+    state["action_progress"] = 0
+    state["godpower"] = min(100, state["godpower"] + 1)
 
     if not is_traveling and zone == "city":
         state["godpower"] = min(100, state["godpower"] + 1)
         if state["cur_hp"] < state["max_hp"]:
             state["cur_hp"] = min(state["max_hp"], state["cur_hp"] + 10)
 
-    state["action_progress"] += 50
-
-    if state["action_progress"] < 100:
-        if random.random() < 0.45:
-            add_log(state, "idle")
+    if not is_traveling and random.random() < 0.35:
+        add_log(state, "idle")
         return
 
-    state["action_progress"] = 0
-    state["godpower"] = min(100, state["godpower"] + 1)
     if is_traveling:
         _handle_road_event(state)
     elif zone == "city":
@@ -440,6 +449,8 @@ def execute_ai_action(state: dict, packet: ApostlePacket) -> bool:
 
         if action == "go_to" and verdict.destination:
             _start_travel(state, verdict.destination)
+            state["next_auto_tick_at"] = time.time() + AUTO_EVENT_INTERVAL_SEC
+            state["action_progress"] = 0
             return True
 
         if action == "equip" and verdict.item and verdict.slot:
@@ -467,6 +478,8 @@ def execute_ai_action(state: dict, packet: ApostlePacket) -> bool:
             _log_raw(state, msg)
             _log_important(state, msg)
             state["current_action"] = f"Equipped {rolled.name}!"
+            state["next_auto_tick_at"] = time.time() + AUTO_EVENT_INTERVAL_SEC
+            state["action_progress"] = 0
             return True
 
         if action == "use_item" and verdict.item:
@@ -483,12 +496,16 @@ def execute_ai_action(state: dict, packet: ApostlePacket) -> bool:
                 f"{state['apostle']} used {verdict.item} and recovered {gained} HP!",
             )
             state["current_action"] = f"Used {verdict.item}!"
+            state["next_auto_tick_at"] = time.time() + AUTO_EVENT_INTERVAL_SEC
+            state["action_progress"] = 0
             return True
 
     if action == "attack":
         if state.get("active_enemy") is None:
             return False
         _resolve_combat_tick(state)
+        state["next_auto_tick_at"] = time.time() + AUTO_EVENT_INTERVAL_SEC
+        state["action_progress"] = 0
         return True
 
     if action == "flee":
@@ -503,6 +520,8 @@ def execute_ai_action(state: dict, packet: ApostlePacket) -> bool:
         else:
             _log_raw(state, f"{state['apostle']} tried to flee from {enemy.name}, but got cornered!")
             _resolve_combat_tick(state)
+        state["next_auto_tick_at"] = time.time() + AUTO_EVENT_INTERVAL_SEC
+        state["action_progress"] = 0
         return True
 
     zone = get_node_zone(state["current_location"])
@@ -515,6 +534,8 @@ def execute_ai_action(state: dict, packet: ApostlePacket) -> bool:
         state["cur_hp"] = min(state["max_hp"], state["cur_hp"] + heal)
         _log_raw(state, f"{state['apostle']} took a quick breather and recovered {heal} HP.")
         state["current_action"] = "Resting..."
+        state["next_auto_tick_at"] = time.time() + AUTO_EVENT_INTERVAL_SEC
+        state["action_progress"] = 0
         return True
 
     if action == "explore":
@@ -528,6 +549,8 @@ def execute_ai_action(state: dict, packet: ApostlePacket) -> bool:
             state["current_action"] = f"Exploring {get_node_name(state['current_location'])}..."
         else:
             _handle_wild_event(state)
+        state["next_auto_tick_at"] = time.time() + AUTO_EVENT_INTERVAL_SEC
+        state["action_progress"] = 0
         return True
 
     if action == "sell_items":
@@ -540,12 +563,16 @@ def execute_ai_action(state: dict, packet: ApostlePacket) -> bool:
         state["gold"] += gold_earned
         add_log(state, "city", "selling", item=item_name, qty=qty, gold=gold_earned)
         state["current_action"] = "Haggling at the market..."
+        state["next_auto_tick_at"] = time.time() + AUTO_EVENT_INTERVAL_SEC
+        state["action_progress"] = 0
         return True
 
     if action == "buy_gear":
         if is_traveling or zone != "city":
             return False
         _run_window_shopping(state, is_whisper=True, target_name=target)
+        state["next_auto_tick_at"] = time.time() + AUTO_EVENT_INTERVAL_SEC
+        state["action_progress"] = 0
         return True
 
     return False
