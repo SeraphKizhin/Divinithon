@@ -25,14 +25,17 @@ def show_important_logs(state: dict) -> None:
     if not entries:
         st.caption("Nothing worthy of legend yet. Go do something reckless.")
     else:
+        apostle_name = str(state.get("apostle", "Apostle"))
         log_items = []
         for entry in reversed(entries):
             cleaned = entry.replace(IMPORTANT_MARKER, "").strip()
             timestamp, msg = _parse_log_line(cleaned)
+            color, is_bold = _get_log_color(msg, apostle_name)
+            weight = "font-weight:600;" if is_bold else ""
             log_items.append(
                 f'<div class="div-log-entry">'
                 f'<div class="div-log-time">{html.escape(timestamp)}</div>'
-                f'<div class="div-log-msg">{html.escape(msg)}</div>'
+                f'<div class="div-log-msg" style="color:{color}; {weight}">{html.escape(msg)}</div>'
                 f'</div>'
             )
         st.markdown(
@@ -101,17 +104,28 @@ def render_center_column(state: dict) -> None:
         """
     render_html(action_html)
 
+    apostle_name = str(state.get("apostle", "Apostle"))
     log_items = []
-    for entry in reversed(state["logbook"]):
+    prev_was_whisper = False
+
+    for entry in state["logbook"]:
         cleaned = entry.replace(IMPORTANT_MARKER, "").strip()
         timestamp, msg = _parse_log_line(cleaned)
+        is_whisper = msg.startswith("[Divine Whisper]")
+        is_reply = prev_was_whisper and msg.startswith(f"{apostle_name}:")
+
+        color, is_bold = _get_log_color(msg, apostle_name, is_whisper_reply=is_reply)
+        weight = "font-weight:600;" if is_bold else ""
+
         log_items.append(
             f'<div class="div-log-entry">'
             f'<div class="div-log-time">{html.escape(timestamp)}</div>'
-            f'<div class="div-log-msg">{html.escape(msg)}</div>'
+            f'<div class="div-log-msg" style="color:{color}; {weight}">{html.escape(msg)}</div>'
             f'</div>'
         )
-    logs_html = "".join(log_items)
+        prev_was_whisper = is_whisper
+
+    logs_html = "".join(reversed(log_items))
     godpower = max(0, min(100, int(state["godpower"])))
 
     with st.container(key="logbook_card_box"):
@@ -189,3 +203,39 @@ def render_center_column(state: dict) -> None:
                     state["logbook"].append(f"[{now_str}] {apostle_name}: {packet.dialogue}")
                 execute_ai_action(state, packet)
                 st.rerun()
+
+def _get_log_color(msg: str, apostle_name: str, is_whisper_reply: bool = False) -> tuple[str, bool]:
+    lower = msg.lower()
+
+    if msg.startswith("[Divine Whisper]"):
+        return "#0044b3", True  
+    if is_whisper_reply or (apostle_name and msg.startswith(f"{apostle_name}:")):
+        return "#2b7de9", False 
+
+    combat_keywords = (
+        "dmg", "defeated", "fatal blow", "ambushed", "jumps out",
+        "combat begins", "boss encounter", "boss music", "fled from",
+        "tried to flee", "blocks the path", "crashes onto the trail",
+        "steps out, cracking", "walked straight into", "stands before",
+    )
+    if any(k in lower for k in combat_keywords):
+        return "#c62828", False 
+
+    quest_keywords = (
+        "quest complete", "new quest", "quest started", "bounty board",
+        "begged for help", "handed ", "engraving", "turned in '",
+        "wrapped up '", "completed '", "is finally done", "finished '",
+        "quest bonus rewards",
+    )
+    if any(k in lower for k in quest_keywords):
+        return "#c2185b", False  
+
+    trade_keywords = (
+        "window-shops", "bought", "splurged", "handed over", "picked up",
+        "blew ", "spent ", "sold ", "haggled", "offloaded", "shopkeeper",
+        "price tags", "worth the gold",
+    )
+    if any(k in lower for k in trade_keywords):
+        return "#b27b00", False  
+
+    return "#333333", False  
