@@ -255,6 +255,8 @@ def _tone_cue(state: dict[str, Any], hp_ratio: float, enemy: Any) -> str:
     zone = get_node_zone(state.get("current_location", "NF"))
     if zone == "city":
         return "Relaxed and easily tempted by market stalls and food."
+    if state.get("dead_until") is not None:
+        return "You are DEAD and waiting in Northern Front to be resurrected. Remind your deity you cannot do physical tasks until revived."
     return "Curious and a bit distracted, eyeing the scenery for shiny things."
 
 

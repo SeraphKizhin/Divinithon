@@ -46,6 +46,7 @@ def create_initial_state(
         "gold": 0,
         "monster_defeated": 0,
         "death_count": 0,
+        "dead_until": None,
 
         "inventory": {},
 

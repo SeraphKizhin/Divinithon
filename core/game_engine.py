@@ -26,6 +26,8 @@ IMPORTANT_MARKER = "★"
 
 _EQUIPMENT_BY_NAME = {eq.name.lower(): eq for eq in EQUIPMENTS}
 AUTO_EVENT_INTERVAL_SEC = 30.0
+RESURRECTION_DURATION_SEC = 60.0
+RESURRECTION_GP_COST = 20
 
 def _log_raw(state: dict, message: str, max_entries: int = 50) -> None:
     timestamp = datetime.now().strftime("%H:%M")
@@ -126,17 +128,22 @@ def _resolve_combat_tick(state: dict) -> None:
 
     if state["cur_hp"] <= 0:
         state["death_count"] += 1
-        death_msg = (f"{enemy.name} landed a fatal blow ({dmg_taken} dmg)! "
-                    f"{apostle} blacked out and woke up back in Northern Front.")
-        _log_important(state, death_msg)
-        _log_raw(state, death_msg)
         state["active_enemy"] = None
         state["travel"] = None
         state["current_location"] = "NF"
         state["wild_stay_stacks"] = 0
-        state["cur_hp"] = state["max_hp"]
+        state["cur_hp"] = 0
+        state["dead_until"] = time.time() + RESURRECTION_DURATION_SEC
         state["action_progress"] = 0
-        state["current_action"] = "Recovering in Northern Front..."
+        state["current_action"] = "Awaiting resurrection in Northern Front..."
+
+        death_msg = (
+            f"{enemy.name} landed a fatal blow ({dmg_taken} dmg)! "
+            f"{apostle}'s body was dragged back to Northern Front. "
+            f"Resurrection in 60s (requires {RESURRECTION_GP_COST} Godpower)."
+        )
+        _log_important(state, death_msg)
+        _log_raw(state, death_msg)
         return
 
     _log_raw(
@@ -266,6 +273,9 @@ def _handle_wild_event(state: dict) -> None:
 
 def run_game_tick(state: dict, *, force_step: bool = False) -> None:
     now = time.time()
+    if state.get("dead_until") is not None:
+        _handle_resurrection_tick(state, now, force_step=force_step)
+        return
     if state.get("active_enemy") is not None:
         _resolve_combat_tick(state)
         state["next_auto_tick_at"] = now + AUTO_EVENT_INTERVAL_SEC
@@ -434,6 +444,10 @@ def _consume_inventory_item(state: dict, item_name: str, qty: int = 1) -> None:
         inv[item_name] = remaining
 
 def execute_ai_action(state: dict, packet: ApostlePacket) -> bool:
+    if state.get("dead_until") is not None:
+        if action != "idle":
+            _log_raw(state, f"({state['apostle']} is currently dead and awaiting resurrection!)")
+        return False
     action = packet.action
     target = packet.target if packet.target != "none" else None
 
@@ -678,3 +692,42 @@ def _run_window_shopping(
         _log_raw(state, f"{state['apostle']} decides nothing on the rack is worth the gold today.")
     state["current_action"] = f"Window-shopping in {get_node_name(state['current_location'])}..."
     return False
+
+def _handle_resurrection_tick(state: dict, now: float, *, force_step: bool = False) -> None:
+    dead_until = state.get("dead_until")
+    if dead_until is None:
+        return
+
+    state["godpower"] = min(100, state["godpower"] + 1)
+
+    if force_step and now < dead_until:
+        dead_until = now
+        state["dead_until"] = now
+
+    remaining = max(0.0, dead_until - now)
+    if remaining > 0:
+        elapsed = RESURRECTION_DURATION_SEC - remaining
+        state["action_progress"] = min(99, int((elapsed / RESURRECTION_DURATION_SEC) * 100))
+        state["current_action"] = f"Resurrecting in {int(remaining) + 1}s..."
+        return
+
+    if state["godpower"] < RESURRECTION_GP_COST:
+        state["action_progress"] = 100
+        state["current_action"] = (
+            f"Waiting for Godpower ({int(state['godpower'])}/{RESURRECTION_GP_COST}) to resurrect..."
+        )
+        return
+
+    state["godpower"] -= RESURRECTION_GP_COST
+    state["dead_until"] = None
+    state["cur_hp"] = state["max_hp"]
+    state["action_progress"] = 0
+    state["next_auto_tick_at"] = now + AUTO_EVENT_INTERVAL_SEC
+    state["current_action"] = "Recovering in Northern Front..."
+
+    res_msg = (
+        f"{state['god_name']} channeled {RESURRECTION_GP_COST} Godpower and resurrected "
+        f"{state['apostle']} in Northern Front!"
+    )
+    _log_important(state, res_msg)
+    _log_raw(state, res_msg)
