@@ -1,6 +1,6 @@
 # Divinithon
 
-An AI-powered Zero-Player RPG (ZPG) built with **Streamlit**[cite: 3]. An automated text-based RPG loop runs in the background while you play as a weakened deity guiding your stubborn, comedic mortal Apostle through natural-language **"Divine Whispers"** powered by an LLM agent[cite: 6, 8, 9].
+An AI-powered Zero-Player RPG (ZPG) built with **Streamlit**. An automated text-based RPG loop runs in the background while you play as a weakened deity guiding your stubborn, comedic mortal Apostle through natural-language **"Divine Whispers"** powered by an LLM agent.
 
 ## Live Links
 - **Trello Board:** [View Project Board](https://trello.com/b/lyevzKWq/divinithon)
@@ -11,12 +11,12 @@ An AI-powered Zero-Player RPG (ZPG) built with **Streamlit**[cite: 3]. An automa
 
 ## Features
 
-- **Hybrid Zero-Player Game Loop:** Automated timer ticks drive exploration, travel, quests, loot drops, and turn-based combat math deterministically—saving API tokens for player interactions[cite: 3, 4, 8].
-- **Agentic Divine Whispers:** Type free-form commands (e.g., *"Run away!"*, *"Head to Whispering Willow"*, *"Hurry up!"*, *"Heal"*) that are translated by an LLM into validated game engine actions (`attack`, `flee`, `go_to`, `use_item`, `equip`, `buy_gear`, `sell_items`, `heal`, `hurry`, `explore`, `rest`, `idle`)[cite: 4, 5, 9].
-- **Godpower & Clarity System:** Every whisper consumes Godpower, which regenerates through town rest, monster kills, and completed quests[cite: 5]. Lower Godpower degrades how clearly the Apostle hears you, causing hilarious misinterpretations[cite: 13].
-- **Dynamic World & Economy:** Travel across 4 connected nodes (**Northern Front**, **Open Easel**, **Whispering Willow**, and **Mykitiokan Farlands**) on an interactive SVG map, battle Normal, Mini-Boss, and Boss monsters, window-shop at city markets, and collect level-scaled gear[cite: 4, 7, 12].
-- **Interactive Dashboard & Akashic Records:** Single-screen 3-column UI featuring dynamic zone landscape banners, a color-coded Logbook, and an **Akashic Records** modal for milestone events[cite: 3, 4, 13].
-- **Multi-Layer Prompt Defense:** Protects the agent against jailbreaks and prompt injections using pre-API regex heuristics, delimiter sanitization, in-world data fencing, hardened system guardrails, and deterministic post-LLM state validation[cite: 9, 13].
+- **Hybrid Zero-Player Game Loop:** Automated timer ticks drive exploration, travel, quests, loot drops, and turn-based combat math deterministically—saving API tokens for player interactions.
+- **Agentic Divine Whispers:** Type free-form commands (e.g., *"Run away!"*, *"Head to Whispering Willow"*, *"Hurry up!"*, *"Heal"*) that are translated by an LLM into validated game engine actions (`attack`, `flee`, `go_to`, `use_item`, `equip`, `buy_gear`, `sell_items`, `heal`, `hurry`, `explore`, `rest`, `idle`).
+- **Godpower & Clarity System:** Every whisper consumes Godpower, which regenerates through town rest, monster kills, and completed quests[cite: 5]. Lower Godpower degrades how clearly the Apostle hears you, causing hilarious misinterpretations.
+- **Dynamic World & Economy:** Travel across 4 connected nodes (**Northern Front**, **Open Easel**, **Whispering Willow**, and **Mykitiokan Farlands**) on an interactive SVG map, battle Normal, Mini-Boss, and Boss monsters, window-shop at city markets, and collect level-scaled gear.
+- **Interactive Dashboard & Akashic Records:** Single-screen 3-column UI featuring dynamic zone landscape banners, a color-coded Logbook, and an **Akashic Records** modal for milestone events.
+- **Multi-Layer Prompt Defense:** Protects the agent against jailbreaks and prompt injections using pre-API regex heuristics, delimiter sanitization, in-world data fencing, hardened system guardrails, and deterministic post-LLM state validation.
 
 ---
 
