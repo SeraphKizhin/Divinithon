@@ -2,7 +2,7 @@ import random
 import time
 from datetime import datetime
 from core.log_generator import add_log
-from core.models import ActiveMonster
+from core.models import Equipment, ActiveMonster
 from core.monster_engine import roll_rewards, spawn_monster, calculate_monster_exp
 from data.catalog import EQUIPMENTS, EXTRA, MONSTERS, SELL_PRICE_LOOKUP
 from data.world_map import get_neighbors, get_node_name, get_node_zone
@@ -25,6 +25,19 @@ TIER_REWARDS = {
 IMPORTANT_MARKER = "★"
 
 _EQUIPMENT_BY_NAME = {eq.name.lower(): eq for eq in EQUIPMENTS}
+AUTO_EVENT_INTERVAL_SEC = 30.0
+HURRY_ACTIVE_INTERVAL_SEC = 15.0
+HURRY_IDLE_INTERVAL_SEC = 8.0 
+HURRY_CHARGES = 3
+ALREADY_HURRYING_REMARKS = [
+    "I'm already moving as fast as my boots allow, Lord! Any faster and I'll trip over my own sword!",
+    "Easy, Almighty! My legs are already a blur—I can't physically hurry any harder!",
+    "I'm practically sprinting here! Give my poor ankles a second to catch up!",
+    "Faster?! If I push this pace any more, I'll arrive in pieces!",
+]
+RESURRECTION_DURATION_SEC = 60.0
+RESURRECTION_GP_COST = 20
+HEAL_GP_COST = 10
 
 def _log_raw(state: dict, message: str, max_entries: int = 50) -> None:
     timestamp = datetime.now().strftime("%H:%M")
@@ -80,7 +93,7 @@ def _resolve_combat_tick(state: dict) -> None:
     if enemy.cur_hp <= 0:
         state["monster_defeated"] += 1
         tier_cfg = TIER_REWARDS[enemy.tier]
-        q_data = state.get("quest_data", {"type": "standard"})
+        q_data = state.get("quest_data") or {"type": "standard"}
         q_type = q_data.get("type", "standard")
         gp_gain = {"normal": 3, "mini_boss": 10, "boss": 25}.get(enemy.tier, 3)
         state["godpower"] = min(100, state["godpower"] + gp_gain)
@@ -125,17 +138,22 @@ def _resolve_combat_tick(state: dict) -> None:
 
     if state["cur_hp"] <= 0:
         state["death_count"] += 1
-        death_msg = (f"{enemy.name} landed a fatal blow ({dmg_taken} dmg)! "
-                    f"{apostle} blacked out and woke up back in Northern Front.")
-        _log_important(state, death_msg)
-        _log_raw(state, death_msg)
         state["active_enemy"] = None
         state["travel"] = None
         state["current_location"] = "NF"
         state["wild_stay_stacks"] = 0
-        state["cur_hp"] = state["max_hp"]
+        state["cur_hp"] = 0
+        state["dead_until"] = time.time() + RESURRECTION_DURATION_SEC
         state["action_progress"] = 0
-        state["current_action"] = "Recovering in Northern Front..."
+        state["current_action"] = "Awaiting resurrection in Northern Front..."
+
+        death_msg = (
+            f"{enemy.name} landed a fatal blow ({dmg_taken} dmg)! "
+            f"{apostle}'s body was dragged back to Northern Front. "
+            f"Resurrection in 60s (requires {RESURRECTION_GP_COST} Godpower)."
+        )
+        _log_important(state, death_msg)
+        _log_raw(state, death_msg)
         return
 
     _log_raw(
@@ -154,7 +172,7 @@ def _handle_city_event(state: dict) -> None:
         _complete_quest(state, "city")
         return
 
-    if state.get("quest_data", {}).get("type") == "absurd":
+    if (state.get("quest_data") or {}).get("type") == "absurd":
         wild_neighbors = [n for n in get_neighbors(state["current_location"]) if get_node_zone(n) != "city"]
         if wild_neighbors:
             _start_travel(state, random.choice(wild_neighbors))
@@ -163,7 +181,7 @@ def _handle_city_event(state: dict) -> None:
     choices = ["wandering", "wandering"]
     if state["inventory"]:
         choices.extend(["selling", "selling"])
-    if state["gold"] >= 50:
+    if state["gold"] >= 150:
         choices.append("buying")
     if random.random() < 0.30:
         choices.append("depart")
@@ -180,35 +198,7 @@ def _handle_city_event(state: dict) -> None:
         state["current_action"] = "Haggling at the market..."
 
     elif event == "buying":
-        if EQUIPMENTS:
-            template = random.choice(EQUIPMENTS)
-            bought_eq = roll_equipment_drop(template, state["lvl"])
-            cost = random.randint(25, min(100, state["gold"]))
-            state["gold"] -= cost
-            equipped = try_auto_equip(state, bought_eq)
-            tag = " [Equipped!]" if equipped else ""
-            add_log(
-                state,
-                "city",
-                "buying",
-                item=f"{bought_eq.name} +{bought_eq.bonus}{tag}",
-                gold=cost,
-            )
-            if equipped:
-                _log_important(
-                    state,
-                    f"Acquired and equipped {bought_eq.name} +{bought_eq.bonus}."
-                )
-            state["current_action"] = (
-                f"Equipping {bought_eq.name}..." if equipped else "Inspecting newly bought gear..."
-            )
-        else:
-            item = "Health Potion"
-            cost = random.randint(25, min(100, state["gold"]))
-            state["gold"] -= cost
-            state["inventory"][item] = state["inventory"].get(item, 0) + 1
-            add_log(state, "city", "buying", item=item, gold=cost)
-            state["current_action"] = "Inspecting newly bought gear..."
+        _run_window_shopping(state, is_whisper=False)
 
     elif event == "depart":
         neighbors = get_neighbors(state["current_location"])
@@ -223,7 +213,7 @@ def _handle_wild_event(state: dict) -> None:
     if state.get("quest") is None:
         _assign_new_quest(state, "wild")
         return
-    q_data = state.get("quest_data", {"type": "standard"})
+    q_data = state.get("quest_data") or {"type": "standard"}
 
     if q_data.get("type") == "absurd":
         elapsed = time.time() - q_data.get("start_time", time.time())
@@ -291,39 +281,62 @@ def _handle_wild_event(state: dict) -> None:
             _start_travel(state, random.choice(neighbors))
 
 
-def run_game_tick(state: dict) -> None:
+def run_game_tick(state: dict, *, force_step: bool = False) -> None:
+    now = time.time()
+    if state.get("dead_until") is not None:
+        _handle_resurrection_tick(state, now, force_step=force_step)
+        return
     if state.get("active_enemy") is not None:
         _resolve_combat_tick(state)
+        state["next_auto_tick_at"] = now + _get_current_auto_interval(state, is_idle=False)
         return
 
     is_traveling = state.get("travel") is not None
     zone = get_node_zone(state["current_location"])
     q_data = state.get("quest_data") or {}
     if zone != "city" and q_data.get("type") == "absurd":
-        elapsed = time.time() - q_data.get("start_time", time.time())
+        elapsed = now - q_data.get("start_time", now)
         duration = max(1, q_data.get("duration_sec", 120))
         state["quest_progress"] = min(100, int((elapsed / duration) * 100))
+
+    next_tick_at = state.get("next_auto_tick_at", 0.0)
+    cycle_duration = state.get("current_tick_duration", AUTO_EVENT_INTERVAL_SEC)
+    if not force_step and now < next_tick_at:
+        remaining = next_tick_at - now
+        elapsed_in_cycle = max(0.0, cycle_duration - remaining)
+        state["action_progress"] = min(99, int((elapsed_in_cycle / max(1.0, cycle_duration)) * 100))
+        return
+    
+    if state.get("hurry_actions_left", 0) > 0:
+        state["hurry_actions_left"] -= 1
+
+    state["action_progress"] = 0
+    state["godpower"] = min(100, state["godpower"] + 1)
 
     if not is_traveling and zone == "city":
         state["godpower"] = min(100, state["godpower"] + 1)
         if state["cur_hp"] < state["max_hp"]:
             state["cur_hp"] = min(state["max_hp"], state["cur_hp"] + 10)
 
-    state["action_progress"] += 50
-
-    if state["action_progress"] < 100:
-        if random.random() < 0.45:
-            add_log(state, "idle")
+    if not is_traveling and random.random() < 0.35:
+        add_log(state, "idle")
+        state["last_log_was_idle"] = True
+        next_dur = _get_current_auto_interval(state, is_idle=True)
+        state["current_tick_duration"] = next_dur
+        state["next_auto_tick_at"] = now + next_dur
         return
 
-    state["action_progress"] = 0
-    state["godpower"] = min(100, state["godpower"] + 1)
+    state["last_log_was_idle"] = False
     if is_traveling:
         _handle_road_event(state)
     elif zone == "city":
         _handle_city_event(state)
     else:
         _handle_wild_event(state)
+
+    next_dur = _get_current_auto_interval(state, is_idle=False)
+    state["current_tick_duration"] = next_dur
+    state["next_auto_tick_at"] = now + next_dur
 
 def _start_travel(state: dict, destination: str, steps: int = 3) -> None:
     """Puts the Apostle onto the road between current_location and destination."""
@@ -384,7 +397,7 @@ def _handle_road_event(state: dict) -> None:
         state["current_action"] = f"Walking to {dest_name}..."
 
 def _complete_quest(state: dict, zone: str) -> None:
-    q_data = state.get("quest_data", {"type": "standard"})
+    q_data = state.get("quest_data") or {"type": "standard"}
     q_type = q_data.get("type", "standard")
 
     if q_type == "boss_hunt":
@@ -417,7 +430,10 @@ def _complete_quest(state: dict, zone: str) -> None:
         bonus_loot.append(f"{extra_item.name} x{qty}")
 
     if q_type == "absurd" and q_data.get("completion_log"):
-        story = q_data["completion_log"].format(apostle=state["apostle"])
+        story = q_data["completion_log"].format(
+            apostle=state["apostle"],
+            god=state.get("god_name", "The Almighty"),
+        )
         loot_str = f" Bonus: {', '.join(bonus_loot)}." if bonus_loot else ""
         comquest_msg = f"QUEST COMPLETE ({state['quest']}): {story} (+{reward_gold}g){loot_str}"
         _log_important(state, comquest_msg)
@@ -427,7 +443,11 @@ def _complete_quest(state: dict, zone: str) -> None:
         if bonus_loot:
             _log_raw(state, f"Quest Bonus Rewards: {', '.join(bonus_loot)}.")
 
-    new_q = roll_new_quest(MONSTERS)
+    new_q = roll_new_quest(
+        MONSTERS,
+        zone,
+        god_name=state.get("god_name", "The Almighty"),
+    )
     state["quest"] = new_q["title"]
     state["quest_data"] = new_q
     state["quest_progress"] = 0
@@ -436,7 +456,11 @@ def _complete_quest(state: dict, zone: str) -> None:
     state["current_action"] = "Preparing for the next quest..."
 
 def _assign_new_quest(state: dict, zone: str) -> None:
-    new_q = roll_new_quest(MONSTERS)
+    new_q = roll_new_quest(
+        MONSTERS,
+        zone,
+        god_name=state.get("god_name", "The Almighty"),
+    )
     state["quest"] = new_q["title"]
     state["quest_data"] = new_q
     state["quest_progress"] = 0
@@ -455,6 +479,10 @@ def _consume_inventory_item(state: dict, item_name: str, qty: int = 1) -> None:
 def execute_ai_action(state: dict, packet: ApostlePacket) -> bool:
     action = packet.action
     target = packet.target if packet.target != "none" else None
+    if state.get("dead_until") is not None:
+        if action != "idle":
+            _log_raw(state, f"({state['apostle']} is currently dead and awaiting resurrection!)")
+        return False
 
     if action == "idle":
         return False
@@ -468,6 +496,10 @@ def execute_ai_action(state: dict, packet: ApostlePacket) -> bool:
 
         if action == "go_to" and verdict.destination:
             _start_travel(state, verdict.destination)
+            next_dur = _get_current_auto_interval(state, is_idle=False)
+            state["current_tick_duration"] = next_dur
+            state["next_auto_tick_at"] = time.time() + next_dur
+            state["action_progress"] = 0
             return True
 
         if action == "equip" and verdict.item and verdict.slot:
@@ -495,6 +527,10 @@ def execute_ai_action(state: dict, packet: ApostlePacket) -> bool:
             _log_raw(state, msg)
             _log_important(state, msg)
             state["current_action"] = f"Equipped {rolled.name}!"
+            next_dur = _get_current_auto_interval(state, is_idle=False)
+            state["current_tick_duration"] = next_dur
+            state["next_auto_tick_at"] = time.time() + next_dur
+            state["action_progress"] = 0
             return True
 
         if action == "use_item" and verdict.item:
@@ -511,12 +547,20 @@ def execute_ai_action(state: dict, packet: ApostlePacket) -> bool:
                 f"{state['apostle']} used {verdict.item} and recovered {gained} HP!",
             )
             state["current_action"] = f"Used {verdict.item}!"
+            next_dur = _get_current_auto_interval(state, is_idle=False)
+            state["current_tick_duration"] = next_dur
+            state["next_auto_tick_at"] = time.time() + next_dur
+            state["action_progress"] = 0
             return True
 
     if action == "attack":
         if state.get("active_enemy") is None:
             return False
         _resolve_combat_tick(state)
+        next_dur = _get_current_auto_interval(state, is_idle=False)
+        state["current_tick_duration"] = next_dur
+        state["next_auto_tick_at"] = time.time() + next_dur
+        state["action_progress"] = 0
         return True
 
     if action == "flee":
@@ -531,6 +575,10 @@ def execute_ai_action(state: dict, packet: ApostlePacket) -> bool:
         else:
             _log_raw(state, f"{state['apostle']} tried to flee from {enemy.name}, but got cornered!")
             _resolve_combat_tick(state)
+        next_dur = _get_current_auto_interval(state, is_idle=False)
+        state["current_tick_duration"] = next_dur
+        state["next_auto_tick_at"] = time.time() + next_dur
+        state["action_progress"] = 0
         return True
 
     zone = get_node_zone(state["current_location"])
@@ -543,6 +591,10 @@ def execute_ai_action(state: dict, packet: ApostlePacket) -> bool:
         state["cur_hp"] = min(state["max_hp"], state["cur_hp"] + heal)
         _log_raw(state, f"{state['apostle']} took a quick breather and recovered {heal} HP.")
         state["current_action"] = "Resting..."
+        next_dur = _get_current_auto_interval(state, is_idle=False)
+        state["current_tick_duration"] = next_dur
+        state["next_auto_tick_at"] = time.time() + next_dur
+        state["action_progress"] = 0
         return True
 
     if action == "explore":
@@ -556,6 +608,10 @@ def execute_ai_action(state: dict, packet: ApostlePacket) -> bool:
             state["current_action"] = f"Exploring {get_node_name(state['current_location'])}..."
         else:
             _handle_wild_event(state)
+        next_dur = _get_current_auto_interval(state, is_idle=False)
+        state["current_tick_duration"] = next_dur
+        state["next_auto_tick_at"] = time.time() + next_dur
+        state["action_progress"] = 0
         return True
 
     if action == "sell_items":
@@ -568,22 +624,218 @@ def execute_ai_action(state: dict, packet: ApostlePacket) -> bool:
         state["gold"] += gold_earned
         add_log(state, "city", "selling", item=item_name, qty=qty, gold=gold_earned)
         state["current_action"] = "Haggling at the market..."
+        next_dur = _get_current_auto_interval(state, is_idle=False)
+        state["current_tick_duration"] = next_dur
+        state["next_auto_tick_at"] = time.time() + next_dur
+        state["action_progress"] = 0
         return True
 
     if action == "buy_gear":
-        if is_traveling or zone != "city" or state["gold"] < 25 or not EQUIPMENTS:
+        if is_traveling or zone != "city":
             return False
-        matching = [eq for eq in EQUIPMENTS if target and eq.name.lower() == target.lower()]
-        template = matching[0] if matching else random.choice(EQUIPMENTS)
-        bought_eq = roll_equipment_drop(template, state["lvl"])
-        cost = random.randint(25, min(100, state["gold"]))
-        state["gold"] -= cost
-        equipped = try_auto_equip(state, bought_eq)
-        tag = " [Equipped!]" if equipped else ""
-        add_log(state, "city", "buying", item=f"{bought_eq.name} +{bought_eq.bonus}{tag}", gold=cost)
-        if equipped:
-            _log_important(state, f"Acquired and equipped {bought_eq.name} +{bought_eq.bonus}.")
-        state["current_action"] = f"Equipping {bought_eq.name}..." if equipped else "Inspecting newly bought gear..."
+        _run_window_shopping(state, is_whisper=True, target_name=target)
+        next_dur = _get_current_auto_interval(state, is_idle=False)
+        state["current_tick_duration"] = next_dur
+        state["next_auto_tick_at"] = time.time() + next_dur
+        state["action_progress"] = 0
+        return True
+
+    if action == "hurry":
+        if state.get("active_enemy") is not None:
+            return False
+
+        if state.get("hurry_actions_left", 0) > 0:
+            remark = random.choice(ALREADY_HURRYING_REMARKS)
+            _log_raw(state, f"{state['apostle']}: {remark}")
+            return False
+
+        state["hurry_actions_left"] = HURRY_CHARGES
+        is_currently_idle = bool(state.get("last_log_was_idle", False))
+        new_dur = HURRY_IDLE_INTERVAL_SEC if is_currently_idle else HURRY_ACTIVE_INTERVAL_SEC
+
+        now = time.time()
+        state["current_tick_duration"] = new_dur
+        state["next_auto_tick_at"] = now + new_dur
+        state["action_progress"] = 0
+        state["current_action"] = f"Hurrying! ({HURRY_CHARGES} fast actions left)"
+        _log_raw(
+            state,
+            f"{state['apostle']} picks up the pace! (Next {HURRY_CHARGES} actions at {int(new_dur)}s intervals)",
+        )
+        return True
+    
+    if action == "heal":
+        if state["godpower"] < HEAL_GP_COST:
+            _log_raw(
+                state,
+                f"({state['apostle']} prayed for healing, but {state['god_name']} lacked the {HEAL_GP_COST} Godpower!)",
+            )
+            return False
+
+        if state["cur_hp"] >= state["max_hp"]:
+            _log_raw(state, f"{state['apostle']} is already at full health!")
+            return False
+
+        state["godpower"] = max(0, state["godpower"] - HEAL_GP_COST)
+        gained = state["max_hp"] - state["cur_hp"]
+        state["cur_hp"] = state["max_hp"]
+
+        _log_raw(
+            state,
+            f"{state['god_name']} channeled {HEAL_GP_COST} Godpower and fully healed "
+            f"{state['apostle']} (+{gained} HP)!",
+        )
+        state["current_action"] = "Bathed in divine healing light!"
+        next_dur = _get_current_auto_interval(state, is_idle=False)
+        state["current_tick_duration"] = next_dur
+        state["next_auto_tick_at"] = time.time() + next_dur
+        state["action_progress"] = 0
         return True
 
     return False
+
+def _is_upgrade_for_apostle(state: dict, candidate: Equipment) -> bool:
+    eq = state["equipment"]
+    slot = candidate.slot
+
+    if slot == "offhand":
+        if not can_equip_offhand(eq.get("mainhand"), candidate):
+            return False
+        cur_off = eq.get("offhand")
+        return cur_off is None or candidate.bonus > cur_off.bonus
+
+    cur_item = eq.get(slot)
+    if cur_item is None or candidate.bonus > cur_item.bonus:
+        return True
+
+    # Offhandable mainhand weapon check (e.g., dual-wielding OHS)
+    if slot == "mainhand" and can_equip_offhand(cur_item, candidate):
+        cur_off = eq.get("offhand")
+        return cur_off is None or candidate.bonus > cur_off.bonus
+
+    return False
+
+def _run_window_shopping(
+    state: dict,
+    *,
+    is_whisper: bool = False,
+    target_name: str | None = None,
+) -> bool:
+    if not EQUIPMENTS:
+        return False
+
+    pool = list(EQUIPMENTS)
+    chosen_templates: list[Equipment] = []
+
+    if target_name:
+        matched = [eq for eq in pool if eq.name.lower() == target_name.lower()]
+        if matched:
+            chosen_templates.append(matched[0])
+            pool.remove(matched[0])
+
+    sample_count = min(3 - len(chosen_templates), len(pool))
+    chosen_templates.extend(random.sample(pool, k=sample_count))
+
+    stalls: list[tuple[Equipment, int, bool, bool]] = []
+    for tmpl in chosen_templates:
+        rolled = roll_equipment_drop(tmpl, state["lvl"])
+        cost = 150 * rolled.bonus
+        is_upg = _is_upgrade_for_apostle(state, rolled)
+        is_targeted = bool(target_name and rolled.name.lower() == target_name.lower())
+        stalls.append((rolled, cost, is_upg, is_targeted))
+
+    display_str = ", ".join(
+        f"{eq.name} +{eq.bonus} ({cost}g{' ★' if upg else ''})"
+        for eq, cost, upg, _ in stalls
+    )
+    _log_raw(
+        state,
+        f"{state['apostle']} window-shops in {get_node_name(state['current_location'])}: {display_str}.",
+    )
+
+    sorted_stalls = sorted(stalls, key=lambda x: (x[2], x[3], x[0].bonus), reverse=True)
+
+    for eq, cost, is_upg, is_targeted in sorted_stalls:
+        if state["gold"] < cost:
+            continue
+
+        if is_whisper:
+            buy_chance = 1.0 if (is_upg or is_targeted) else 0.35
+        else:
+            buy_chance = 0.75 if is_upg else 0.15
+
+        if random.random() < buy_chance:
+            state["gold"] -= cost
+            equipped = try_auto_equip(state, eq, force=not is_upg)
+            tag = " [Equipped!]" if equipped else ""
+            log_event = "buying" if is_upg else "buying_weaker"
+            add_log(
+                state,
+                "city",
+                log_event,
+                item=f"{eq.name} +{eq.bonus}{tag}",
+                gold=cost,
+            )
+            if equipped and is_upg:
+                _log_important(
+                    state,
+                    f"Bought and equipped {eq.name} +{eq.bonus} ({cost}g).",
+                )
+            state["current_action"] = (
+                f"Showing off {eq.name}..." if (equipped and not is_upg)
+                else f"Equipping {eq.name}..." if equipped
+                else "Inspecting newly bought gear..."
+            )
+            return True
+
+    cheapest = min(cost for _, cost, _, _ in stalls)
+    if state["gold"] < cheapest:
+        _log_raw(state, f"{state['apostle']} sighs at the price tags and keeps walking (need at least {cheapest}g).")
+    else:
+        _log_raw(state, f"{state['apostle']} decides nothing on the rack is worth the gold today.")
+    state["current_action"] = f"Window-shopping in {get_node_name(state['current_location'])}..."
+    return False
+
+def _handle_resurrection_tick(state: dict, now: float, *, force_step: bool = False) -> None:
+    dead_until = state.get("dead_until")
+    if dead_until is None:
+        return
+
+    state["godpower"] = min(100, state["godpower"] + 1)
+
+    if force_step and now < dead_until:
+        dead_until = now
+        state["dead_until"] = now
+
+    remaining = max(0.0, dead_until - now)
+    if remaining > 0:
+        elapsed = RESURRECTION_DURATION_SEC - remaining
+        state["action_progress"] = min(99, int((elapsed / RESURRECTION_DURATION_SEC) * 100))
+        state["current_action"] = f"Resurrecting in {int(remaining) + 1}s..."
+        return
+
+    if state["godpower"] < RESURRECTION_GP_COST:
+        state["action_progress"] = 100
+        state["current_action"] = (
+            f"Waiting for Godpower ({int(state['godpower'])}/{RESURRECTION_GP_COST}) to resurrect..."
+        )
+        return
+
+    state["godpower"] -= RESURRECTION_GP_COST
+    state["dead_until"] = None
+    state["cur_hp"] = state["max_hp"]
+    state["action_progress"] = 0
+    state["next_auto_tick_at"] = now + AUTO_EVENT_INTERVAL_SEC
+    state["current_action"] = "Recovering in Northern Front..."
+
+    res_msg = (
+        f"{state['god_name']} channeled {RESURRECTION_GP_COST} Godpower and resurrected "
+        f"{state['apostle']} in Northern Front!"
+    )
+    _log_important(state, res_msg)
+    _log_raw(state, res_msg)
+
+def _get_current_auto_interval(state: dict, *, is_idle: bool = False) -> float:
+    if state.get("hurry_actions_left", 0) <= 0:
+        return AUTO_EVENT_INTERVAL_SEC
+    return HURRY_IDLE_INTERVAL_SEC if is_idle else HURRY_ACTIVE_INTERVAL_SEC

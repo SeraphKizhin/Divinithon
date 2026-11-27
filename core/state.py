@@ -46,11 +46,15 @@ def create_initial_state(
         "gold": 0,
         "monster_defeated": 0,
         "death_count": 0,
+        "dead_until": None,
 
         "inventory": {},
 
         "current_action": "Awaiting divine guidance...",
         "action_progress": 0,
+        "next_auto_tick_at": 0.0,
+        "hurry_actions_left": 0,
+        "last_log_was_idle": False,
         "active_enemy": None,
         "logbook": [
             f"[00:00] {apostle} awakens under the gaze of {god_name}."
@@ -59,7 +63,7 @@ def create_initial_state(
             f"[00:00] {apostle} awakens under the gaze of {god_name}."
         ],
 
-        "godpower": 40,
+        "godpower": 70,
 
         "map_nodes": ["NF", "WW", "OE", "MF"],
         "current_location": "NF",

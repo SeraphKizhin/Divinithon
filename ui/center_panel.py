@@ -2,12 +2,17 @@ import streamlit as st
 import html
 import re
 from datetime import datetime
-from ui.styles import progress_bar_html, render_html
+from ui.styles import progress_bar_html, render_html, get_base64_image
 from core.llm_client import ask_apostle
 from core.game_engine import execute_ai_action
+from data.world_map import get_node_name
 
 IMPORTANT_MARKER = "★"
 WHISPER_COST = 15
+
+HURRY_KEYWORDS = ("hurry", "faster", "quick", "chop chop", "speed up", "move it")
+HEAL_KEYWORDS = ("heal", "cure", "mend", "restore hp", "full hp", "revitalize")
+HEAL_COST = 10
 
 def _parse_log_line(line: str) -> tuple[str, str]:
     """Splits '[02:32] Message' or '02:32 Message' into (timestamp, message)."""
@@ -23,14 +28,17 @@ def show_important_logs(state: dict) -> None:
     if not entries:
         st.caption("Nothing worthy of legend yet. Go do something reckless.")
     else:
+        apostle_name = str(state.get("apostle", "Apostle"))
         log_items = []
         for entry in reversed(entries):
             cleaned = entry.replace(IMPORTANT_MARKER, "").strip()
             timestamp, msg = _parse_log_line(cleaned)
+            color, is_bold = _get_log_color(msg, apostle_name)
+            weight = "font-weight:600;" if is_bold else ""
             log_items.append(
                 f'<div class="div-log-entry">'
                 f'<div class="div-log-time">{html.escape(timestamp)}</div>'
-                f'<div class="div-log-msg">{html.escape(msg)}</div>'
+                f'<div class="div-log-msg" style="color:{color}; {weight}">{html.escape(msg)}</div>'
                 f'</div>'
             )
         st.markdown(
@@ -43,10 +51,51 @@ def show_important_logs(state: dict) -> None:
 
 
 def render_center_column(state: dict) -> None:
-    landscape_html = f"""
-    <div class="div-card">
-      <div class="div-card-header">&nbsp;</div>
-      <div class="div-card-body">
+    travel = state.get("travel")
+    loc_code = str(state.get("current_location", "NF"))
+
+    if travel is not None:
+        road_idx = (hash((travel["from"], travel["to"])) % 3) + 1
+        img_key = f"road{road_idx}"
+        origin_name = get_node_name(travel["from"])
+        dest_name = get_node_name(travel["to"])
+        caption = f"On the Road: {html.escape(origin_name)} &rarr; {html.escape(dest_name)}"
+        alt_text = html.escape(f"On the Road: {origin_name} to {dest_name}")
+    else:
+        img_key = loc_code
+        loc_name = get_node_name(loc_code)
+        caption = html.escape(loc_name)
+        alt_text = caption
+
+    artist_credit = "Art by Juner John Caimor" if img_key == "MF" else "Stolen from Pinterest"
+    img_uri = get_base64_image(f"assets/{img_key}.png")
+
+    if img_uri:
+        banner_inner = f"""
+        <div style="position:relative; height:145px; border-radius:10px; overflow:hidden;">
+          <img src="{img_uri}" alt="{alt_text}" style="
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+          " />
+          <div style="
+            position: absolute;
+            bottom: 8px;
+            right: 10px;
+            background: rgba(20, 20, 20, 0.65);
+            color: #ffffff;
+            padding: 3px 10px;
+            border-radius: 999px;
+            font-size: 0.78rem;
+            font-weight: 500;
+          ">
+            {caption}
+          </div>
+        </div>
+        """
+    else:
+        banner_inner = f"""
         <div style="
           height: 145px;
           border-radius: 10px;
@@ -58,12 +107,21 @@ def render_center_column(state: dict) -> None:
           color: #5b7a94;
           font-size: 0.95rem;
         ">
-          [Landscape Placeholder &mdash; Location: {html.escape(str(state['current_location']))}]
+          [Landscape &mdash; {caption}]
         </div>
+        """
+
+    landscape_html = f"""
+    <div class="div-card">
+      <div class="div-card-header" style="font-size:0.82rem; color:#666666;">
+        {html.escape(artist_credit)}
+      </div>
+      <div class="div-card-body">
+        {banner_inner}
       </div>
     </div>
     """
-    st.markdown(landscape_html, unsafe_allow_html=True)
+    render_html(landscape_html)
 
     enemy = state.get("active_enemy")
     if enemy is not None:
@@ -81,7 +139,7 @@ def render_center_column(state: dict) -> None:
             <div class="div-card-body">
                 {progress_bar_html(enemy_hp_pct, "#e04f4f")}
                 <div class="div-serif" style="margin-top:4px; margin-bottom:0;">
-                    <strong>{enemy.name}{tier_badge}</strong> &bull; Lv. {enemy.level} &bull; {enemy_hp_pct:.0f}%
+                    <strong>{safe_enemy_name}{tier_badge}</strong> &bull; Lv. {enemy.level} &bull; {enemy_hp_pct:.0f}%
                 </div>
             </div>
         </div>
@@ -92,24 +150,35 @@ def render_center_column(state: dict) -> None:
         <div class="div-card">
             <div class="div-card-header">Current Action</div>
             <div class="div-card-body">
-                <div class="div-serif">{state["current_action"]}</div>
+                <div class="div-serif">{safe_action}</div>
                 {progress_bar_html(state["action_progress"], "#f0c43c")}
             </div>
         </div>
         """
     render_html(action_html)
 
+    apostle_name = str(state.get("apostle", "Apostle"))
     log_items = []
-    for entry in reversed(state["logbook"]):
+    prev_was_whisper = False
+
+    for entry in state["logbook"]:
         cleaned = entry.replace(IMPORTANT_MARKER, "").strip()
         timestamp, msg = _parse_log_line(cleaned)
+        is_whisper = msg.startswith("[Divine Whisper]")
+        is_reply = prev_was_whisper and msg.startswith(f"{apostle_name}:")
+
+        color, is_bold = _get_log_color(msg, apostle_name, is_whisper_reply=is_reply)
+        weight = "font-weight:600;" if is_bold else ""
+
         log_items.append(
             f'<div class="div-log-entry">'
             f'<div class="div-log-time">{html.escape(timestamp)}</div>'
-            f'<div class="div-log-msg">{html.escape(msg)}</div>'
+            f'<div class="div-log-msg" style="color:{color}; {weight}">{html.escape(msg)}</div>'
             f'</div>'
         )
-    logs_html = "".join(log_items)
+        prev_was_whisper = is_whisper
+
+    logs_html = "".join(reversed(log_items))
     godpower = max(0, min(100, int(state["godpower"])))
 
     with st.container(key="logbook_card_box"):
@@ -162,20 +231,83 @@ def render_center_column(state: dict) -> None:
             disabled=not can_whisper,
             key="divine_whisper_input",
         )
+    is_heal_text = any(kw in whisper_input.lower() for kw in HEAL_KEYWORDS)
+    can_send_now = godpower >= (HEAL_COST if is_heal_text else WHISPER_COST)
+
     with btn_col2:
         if st.button(
             f"Send (-{WHISPER_COST})",
             use_container_width=True,
-            disabled=not can_whisper,
+            disabled=not can_send_now,
         ):
             clean_whisper = whisper_input.strip()
-            if clean_whisper and state["godpower"] >= WHISPER_COST:
+            is_heal_cmd = any(kw in clean_whisper.lower() for kw in HEAL_KEYWORDS)
+            required_gp = HEAL_COST if is_heal_cmd else WHISPER_COST
+
+            if clean_whisper and state["godpower"] >= required_gp:
                 now_str = datetime.now().strftime("%H:%M")
-                state["godpower"] = max(0, state["godpower"] - WHISPER_COST)
+                if not is_heal_cmd:
+                    state["godpower"] = max(0, state["godpower"] - WHISPER_COST)
+
                 state["logbook"].append(f"[{now_str}] [Divine Whisper] {clean_whisper}")
                 packet = ask_apostle(state, clean_whisper)
+
+                if (
+                    packet.action == "idle"
+                    and state.get("dead_until") is None
+                    and is_heal_cmd
+                ):
+                    packet.action = "heal"
+                    packet.target = "none"
+                elif (
+                    packet.action == "idle"
+                    and state.get("active_enemy") is None
+                    and state.get("dead_until") is None
+                    and any(kw in clean_whisper.lower() for kw in HURRY_KEYWORDS)
+                ):
+                    packet.action = "hurry"
+                    packet.target = "none"
+                if packet.action == "heal" and not is_heal_cmd:
+                    state["godpower"] = min(100, state["godpower"] + WHISPER_COST)
+
                 if packet.dialogue:
                     apostle_name = state.get("apostle", "Apostle")
                     state["logbook"].append(f"[{now_str}] {apostle_name}: {packet.dialogue}")
                 execute_ai_action(state, packet)
                 st.rerun()
+
+def _get_log_color(msg: str, apostle_name: str, is_whisper_reply: bool = False) -> tuple[str, bool]:
+    lower = msg.lower()
+
+    if msg.startswith("[Divine Whisper]"):
+        return "#0044b3", True  
+    if is_whisper_reply or (apostle_name and msg.startswith(f"{apostle_name}:")):
+        return "#2b7de9", False 
+
+    combat_keywords = (
+        "dmg", "defeated", "fatal blow", "ambushed", "jumps out",
+        "combat begins", "boss encounter", "boss music", "fled from",
+        "tried to flee", "blocks the path", "crashes onto the trail",
+        "steps out, cracking", "walked straight into", "stands before",
+    )
+    if any(k in lower for k in combat_keywords):
+        return "#c62828", False 
+
+    quest_keywords = (
+        "quest complete", "new quest", "quest started", "bounty board",
+        "begged for help", "handed ", "engraving", "turned in '",
+        "wrapped up '", "completed '", "is finally done", "finished '",
+        "quest bonus rewards",
+    )
+    if any(k in lower for k in quest_keywords):
+        return "#c2185b", False  
+
+    trade_keywords = (
+        "window-shops", "bought", "splurged", "handed over", "picked up",
+        "blew ", "spent ", "sold ", "haggled", "offloaded", "shopkeeper",
+        "price tags", "worth the gold",
+    )
+    if any(k in lower for k in trade_keywords):
+        return "#b27b00", False  
+
+    return "#333333", False  

@@ -37,7 +37,7 @@ with btn_pause:
         st.rerun()
 with btn_step:
     if st.button("Next Tick", use_container_width=True):
-        run_game_tick(state)
+        run_game_tick(state, force_step=True)
         st.rerun()
 with btn_logout:
     if st.button("Log Out", use_container_width=True):

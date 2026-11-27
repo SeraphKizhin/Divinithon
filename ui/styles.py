@@ -1,5 +1,16 @@
 import streamlit as st
 import base64
+import base64
+from pathlib import Path
+
+@st.cache_data
+def get_base64_image(image_path: str) -> str | None:
+    path = Path(image_path)
+    if not path.is_file():
+        return None
+    mime = "image/jpeg" if path.suffix.lower() in (".jpg", ".jpeg") else "image/png"
+    encoded = base64.b64encode(path.read_bytes()).decode("utf-8")
+    return f"data:{mime};base64,{encoded}"
 
 def render_html(raw_html: str) -> None:
     st.html(raw_html)
