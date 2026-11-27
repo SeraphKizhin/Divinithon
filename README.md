@@ -20,37 +20,6 @@ An AI-powered Zero-Player RPG (ZPG) built with **Streamlit**[cite: 3]. An automa
 
 ---
 
-## Project Structure
-
-```text
-divinithon/
-├── app.py                     # Main Streamlit entry point & 3-column dashboard layout
-├── requirements.txt           # Python dependencies
-├── .env.example               # Template for required environment variables
-├── assets/                    # Zone & road landscape banners (NF, OE, WW, MF, road)
-├── core/
-│   ├── state.py               # Initial session state & Apostle/Deity defaults
-│   ├── models.py              # Dataclasses for Equipment, Monsters, and SellableItems
-│   ├── game_engine.py         # Automated tick loop, combat, travel, economy & AI action bridge
-│   ├── monster_engine.py      # Tier spawn weights, level HP/EXP scaling & cascading loot rolls
-│   ├── equipment_rules.py     # Bonus rolling, offhand compatibility & auto-equip logic
-│   ├── log_generator.py       # Timestamped procedural log formatting
-│   └── prompts.py             # Engineered system prompt, injection defense & JSON parser
-├── data/
-│   ├── catalog.py             # Equipments, monsters, sellable loot & price lookup tables
-│   ├── log_catalog.py         # Procedural city, wild, and idle chatter templates
-│   ├── quest_catalog.py       # Standard, boss-hunt, and absurd quest generators
-│   └── world_map.py           # World nodes, zone types, coordinates & graph edges
-├── services/
-│   └── ai_oracle.py           # OpenAI-compatible LLM client wrapper
-└── ui/
-    ├── login_page.py          # Deity & Apostle naming screen
-    ├── left_panel.py          # Apostle stats, active quest, Gold, counters & inventory
-    ├── center_panel.py        # Landscape banner, action bar, color-coded Logbook & Whisper input
-    ├── right_panel.py         # Interactive SVG node map & 5-slot equipment view
-    └── styles.py              # Custom CSS cards, progress bars & cached base64 image loader
-```
-
 ## Local Setup & Run Instructions
 
 ```bash
