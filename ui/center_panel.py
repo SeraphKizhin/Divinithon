@@ -2,9 +2,10 @@ import streamlit as st
 import html
 import re
 from datetime import datetime
-from ui.styles import progress_bar_html, render_html
+from ui.styles import progress_bar_html, render_html, get_base64_image
 from core.llm_client import ask_apostle
 from core.game_engine import execute_ai_action
+from data.world_map import get_node_name
 
 IMPORTANT_MARKER = "★"
 WHISPER_COST = 15
@@ -50,10 +51,51 @@ def show_important_logs(state: dict) -> None:
 
 
 def render_center_column(state: dict) -> None:
-    landscape_html = f"""
-    <div class="div-card">
-      <div class="div-card-header">&nbsp;</div>
-      <div class="div-card-body">
+    travel = state.get("travel")
+    loc_code = str(state.get("current_location", "NF"))
+
+    if travel is not None:
+        road_idx = (hash((travel["from"], travel["to"])) % 3) + 1
+        img_key = f"road{road_idx}"
+        origin_name = get_node_name(travel["from"])
+        dest_name = get_node_name(travel["to"])
+        caption = f"On the Road: {html.escape(origin_name)} &rarr; {html.escape(dest_name)}"
+        alt_text = html.escape(f"On the Road: {origin_name} to {dest_name}")
+    else:
+        img_key = loc_code
+        loc_name = get_node_name(loc_code)
+        caption = html.escape(loc_name)
+        alt_text = caption
+
+    artist_credit = "Art by Juner John Caimor" if img_key == "MF" else "Stolen from Pinterest"
+    img_uri = get_base64_image(f"assets/{img_key}.png")
+
+    if img_uri:
+        banner_inner = f"""
+        <div style="position:relative; height:145px; border-radius:10px; overflow:hidden;">
+          <img src="{img_uri}" alt="{alt_text}" style="
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+          " />
+          <div style="
+            position: absolute;
+            bottom: 8px;
+            right: 10px;
+            background: rgba(20, 20, 20, 0.65);
+            color: #ffffff;
+            padding: 3px 10px;
+            border-radius: 999px;
+            font-size: 0.78rem;
+            font-weight: 500;
+          ">
+            {caption}
+          </div>
+        </div>
+        """
+    else:
+        banner_inner = f"""
         <div style="
           height: 145px;
           border-radius: 10px;
@@ -65,12 +107,21 @@ def render_center_column(state: dict) -> None:
           color: #5b7a94;
           font-size: 0.95rem;
         ">
-          [Landscape Placeholder &mdash; Location: {html.escape(str(state['current_location']))}]
+          [Landscape &mdash; {caption}]
         </div>
+        """
+
+    landscape_html = f"""
+    <div class="div-card">
+      <div class="div-card-header" style="font-size:0.82rem; color:#666666;">
+        {html.escape(artist_credit)}
+      </div>
+      <div class="div-card-body">
+        {banner_inner}
       </div>
     </div>
     """
-    st.markdown(landscape_html, unsafe_allow_html=True)
+    render_html(landscape_html)
 
     enemy = state.get("active_enemy")
     if enemy is not None:
@@ -88,7 +139,7 @@ def render_center_column(state: dict) -> None:
             <div class="div-card-body">
                 {progress_bar_html(enemy_hp_pct, "#e04f4f")}
                 <div class="div-serif" style="margin-top:4px; margin-bottom:0;">
-                    <strong>{enemy.name}{tier_badge}</strong> &bull; Lv. {enemy.level} &bull; {enemy_hp_pct:.0f}%
+                    <strong>{safe_enemy_name}{tier_badge}</strong> &bull; Lv. {enemy.level} &bull; {enemy_hp_pct:.0f}%
                 </div>
             </div>
         </div>
@@ -99,7 +150,7 @@ def render_center_column(state: dict) -> None:
         <div class="div-card">
             <div class="div-card-header">Current Action</div>
             <div class="div-card-body">
-                <div class="div-serif">{state["current_action"]}</div>
+                <div class="div-serif">{safe_action}</div>
                 {progress_bar_html(state["action_progress"], "#f0c43c")}
             </div>
         </div>

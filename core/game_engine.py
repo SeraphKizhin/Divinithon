@@ -430,7 +430,10 @@ def _complete_quest(state: dict, zone: str) -> None:
         bonus_loot.append(f"{extra_item.name} x{qty}")
 
     if q_type == "absurd" and q_data.get("completion_log"):
-        story = q_data["completion_log"].format(apostle=state["apostle"])
+        story = q_data["completion_log"].format(
+            apostle=state["apostle"],
+            god=state.get("god_name", "The Almighty"),
+        )
         loot_str = f" Bonus: {', '.join(bonus_loot)}." if bonus_loot else ""
         comquest_msg = f"QUEST COMPLETE ({state['quest']}): {story} (+{reward_gold}g){loot_str}"
         _log_important(state, comquest_msg)
@@ -440,7 +443,11 @@ def _complete_quest(state: dict, zone: str) -> None:
         if bonus_loot:
             _log_raw(state, f"Quest Bonus Rewards: {', '.join(bonus_loot)}.")
 
-    new_q = roll_new_quest(MONSTERS, zone)
+    new_q = roll_new_quest(
+        MONSTERS,
+        zone,
+        god_name=state.get("god_name", "The Almighty"),
+    )
     state["quest"] = new_q["title"]
     state["quest_data"] = new_q
     state["quest_progress"] = 0
@@ -449,7 +456,11 @@ def _complete_quest(state: dict, zone: str) -> None:
     state["current_action"] = "Preparing for the next quest..."
 
 def _assign_new_quest(state: dict, zone: str) -> None:
-    new_q = roll_new_quest(MONSTERS, zone)
+    new_q = roll_new_quest(
+        MONSTERS,
+        zone,
+        god_name=state.get("god_name", "The Almighty"),
+    )
     state["quest"] = new_q["title"]
     state["quest_data"] = new_q
     state["quest_progress"] = 0
