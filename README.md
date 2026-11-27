@@ -5,7 +5,7 @@ An AI-powered Zero-Player RPG (ZPG) built with **Streamlit**[cite: 3]. An automa
 ## Live Links
 - **Trello Board:** [View Project Board](https://trello.com/b/lyevzKWq/divinithon)
 - **Game Data (Google Sheet):** [View Equipment & Monsters Sheet](https://docs.google.com/spreadsheets/d/1t-H755kepdq32KBuS9Hk5aniY1BuIQDL9mOXJba8RJY/edit?usp=sharing)
-- **Live App:** *[Play Here](https://divinithon-game.streamlit.app/)
+- **Live App:** [Play Here](https://divinithon-game.streamlit.app/)
 
 ---
 
